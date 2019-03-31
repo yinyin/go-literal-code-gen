@@ -36,3 +36,5 @@ Icon
 *.test
 *.out
 .glide/
+
+go-literal-code-gen
