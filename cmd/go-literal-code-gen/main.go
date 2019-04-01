@@ -14,9 +14,10 @@ func main() {
 	}
 	log.Printf("Input: %v", inputFilePath)
 	log.Printf("Output: %v", outputFilePath)
-	err = literalcodegen.ParseMarkdown(inputFilePath)
+	code, err := literalcodegen.ParseMarkdown(inputFilePath)
 	if nil != err {
 		log.Fatalf("ERR: parsing Markdown input failed: %v", err)
 		return
 	}
+	literalcodegen.LogLiteralCode(code)
 }
