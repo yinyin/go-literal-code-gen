@@ -1,20 +1,98 @@
 package literalcodegen
 
-// TranslateAsConst set translation mode in constant
+import (
+	"regexp"
+	"strconv"
+	"strings"
+	"unicode"
+)
+
+// TranslateAsConst set translation mode to constant
 const TranslateAsConst = 1
+
+// TranslateAsBuilder set translation mode to builder function
+const TranslateAsBuilder = 2
+
+// ReplaceRule represent literal replacing rule for generating builder function
+type ReplaceRule struct {
+	RegexTrap       *regexp.Regexp
+	GroupIndex      int
+	ReplacementText string
+}
+
+func newReplaceRule() *ReplaceRule {
+	return &ReplaceRule{
+		RegexTrap:       nil,
+		GroupIndex:      -1,
+		ReplacementText: "",
+	}
+}
+
+func (rule *ReplaceRule) setRegexTrap(v string) (err error) {
+	regexRule, err := regexp.Compile(v)
+	if nil != err {
+		return err
+	}
+	rule.RegexTrap = regexRule
+	return nil
+}
+
+func (rule *ReplaceRule) setGroupIndex(v string) (err error) {
+	v = strings.TrimFunc(v, func(r rune) bool {
+		return !unicode.IsNumber(r)
+	})
+	idx, err := strconv.ParseInt(v, 10, 31)
+	if nil != err {
+		return
+	}
+	rule.GroupIndex = int(idx)
+	return nil
+}
+
+func (rule *ReplaceRule) setReplacementText(v string) (err error) {
+	rule.ReplacementText = v
+	return nil
+}
 
 // LiteralEntry represent one literal entity to generate
 type LiteralEntry struct {
 	Name            string
 	TranslationMode int
 	TrimSpace       bool
+	PreserveNewLine bool
 	TailNewLine     bool
+	Parameters      []string
 	Content         []string
+
+	replaceRules []*ReplaceRule
 }
 
 // NewLiteralEntry create a new instance of LiteralEntry and set properties to default values
 func NewLiteralEntry() *LiteralEntry {
 	return &LiteralEntry{}
+}
+
+// AppendContent add given content line by line and transform with specified configuration
+func (entry *LiteralEntry) AppendContent(content string) {
+	lineBuffer := strings.Split(content, "\n")
+	lastLineIndex := len(lineBuffer) - 1
+	for idx, line := range lineBuffer {
+		if entry.TrimSpace {
+			line = strings.TrimSpace(line)
+		} else {
+			line = strings.TrimRightFunc(line, unicode.IsSpace)
+		}
+		if ((idx == lastLineIndex) && (entry.TailNewLine)) || entry.PreserveNewLine {
+			line = line + "\n"
+		} else if "" == line {
+			continue
+		}
+		entry.Content = append(entry.Content, line)
+	}
+}
+
+func (entry *LiteralEntry) appendReplaceRule(rule *ReplaceRule) {
+	entry.replaceRules = append(entry.replaceRules, rule)
 }
 
 // LiteralCode represent one literal code module to generate
