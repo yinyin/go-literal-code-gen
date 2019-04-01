@@ -11,14 +11,12 @@ import (
 type markdownParseCallable func(token markdown.Token) (markdownParseCallable, error)
 
 type markdownParseSpace struct {
-	result       LiteralCode
-	currentNode  *LiteralEntry
-	nextCallable markdownParseCallable
+	result      LiteralCode
+	currentNode *LiteralEntry
 }
 
 func newMarkdownParseSpace() (result *markdownParseSpace) {
 	result = &markdownParseSpace{}
-	result.nextCallable = result.stateZero
 	return
 }
 
@@ -48,19 +46,22 @@ func (w *markdownParseSpace) stateZero(token markdown.Token) (nextCallable markd
 	switch t := token.(type) {
 	case *markdown.HeadingOpen:
 		return w.checkHeading(token.(*markdown.HeadingOpen))
+	case *markdown.BulletListOpen:
+
 	default:
 		log.Printf("skipped markdown node: %v, %v", t, token)
 	}
 	return nil, nil
 }
 
-func (w *markdownParseSpace) feedToken(token markdown.Token) (err error) {
-	nextCallable, err := w.nextCallable(token)
-	if nil != err {
-		return
-	}
-	if nil != nextCallable {
-		w.nextCallable = nextCallable
+func (w *markdownParseSpace) feedTokens(startCallable markdownParseCallable, tokens []markdown.Token) (err error) {
+	currentCallable := startCallable
+	for _, tok := range tokens {
+		if nextCallable, err := currentCallable(tok); nil != err {
+			return err
+		} else if nil != nextCallable {
+			currentCallable = nextCallable
+		}
 	}
 	return nil
 }
@@ -74,10 +75,8 @@ func ParseMarkdown(filePath string) (err error) {
 	md := markdown.New()
 	tokens := md.Parse(buf)
 	work := newMarkdownParseSpace()
-	for _, tok := range tokens {
-		if err = work.feedToken(tok); nil != err {
-			return err
-		}
+	if err = work.feedTokens(work.stateZero, tokens); nil != err {
+		return
 	}
 	return nil
 }
