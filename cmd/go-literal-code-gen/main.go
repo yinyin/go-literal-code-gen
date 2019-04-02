@@ -20,4 +20,10 @@ func main() {
 		return
 	}
 	literalcodegen.LogLiteralCode(code)
+	err = literalcodegen.GenerateGoCodeFile(outputFilePath, code)
+	if nil != err {
+		log.Fatalf("ERR: failed on generating output code: %v", err)
+		return
+	}
+	log.Printf("** Completed.")
 }
