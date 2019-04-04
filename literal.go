@@ -1,8 +1,6 @@
 package literalcodegen
 
 import (
-	"regexp"
-	"strconv"
 	"strings"
 	"unicode"
 )
@@ -12,47 +10,6 @@ const TranslateAsConst = 1
 
 // TranslateAsBuilder set translation mode to builder function
 const TranslateAsBuilder = 2
-
-// ReplaceRule represent literal replacing rule for generating builder function
-type ReplaceRule struct {
-	RegexTrap       *regexp.Regexp
-	GroupIndex      int
-	ReplacementText string
-}
-
-func newReplaceRule() *ReplaceRule {
-	return &ReplaceRule{
-		RegexTrap:       nil,
-		GroupIndex:      -1,
-		ReplacementText: "",
-	}
-}
-
-func (rule *ReplaceRule) setRegexTrap(v string) (err error) {
-	regexRule, err := regexp.Compile(v)
-	if nil != err {
-		return err
-	}
-	rule.RegexTrap = regexRule
-	return nil
-}
-
-func (rule *ReplaceRule) setGroupIndex(v string) (err error) {
-	v = strings.TrimFunc(v, func(r rune) bool {
-		return !unicode.IsNumber(r)
-	})
-	idx, err := strconv.ParseInt(v, 10, 31)
-	if nil != err {
-		return
-	}
-	rule.GroupIndex = int(idx)
-	return nil
-}
-
-func (rule *ReplaceRule) setReplacementText(v string) (err error) {
-	rule.ReplacementText = v
-	return nil
-}
 
 // LiteralEntry represent one literal entity to generate
 type LiteralEntry struct {
