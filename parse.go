@@ -8,6 +8,9 @@ import (
 	"gitlab.com/golang-commonmark/markdown"
 )
 
+// TextTrapHeadingCode is the trapping constant string for detecting heading code block
+const TextTrapHeadingCode = "Heading Code"
+
 type markdownParseCallable func(token markdown.Token) (markdownParseCallable, error)
 
 type markdownParseSpace struct {
@@ -23,7 +26,7 @@ func newMarkdownParseSpace() (result *markdownParseSpace) {
 
 func (w *markdownParseSpace) stateHeading1(token markdown.Token) (nextCallable markdownParseCallable, err error) {
 	if textToken, ok := token.(*markdown.Inline); ok {
-		if textToken.Content == "Heading Code" {
+		if textToken.Content == TextTrapHeadingCode {
 			w.currentNode = w.result.NewHeadingCode()
 			log.Printf("having heading code node")
 		} else {
