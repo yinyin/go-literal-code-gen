@@ -11,14 +11,14 @@ import (
 type ReplaceRule struct {
 	RegexTrap       *regexp.Regexp
 	GroupIndex      int
-	ReplacementText string
+	ReplacementCode string
 }
 
 func newReplaceRule() *ReplaceRule {
 	return &ReplaceRule{
 		RegexTrap:       nil,
 		GroupIndex:      -1,
-		ReplacementText: "",
+		ReplacementCode: "",
 	}
 }
 
@@ -43,7 +43,7 @@ func (rule *ReplaceRule) setGroupIndex(v string) (err error) {
 	return nil
 }
 
-func (rule *ReplaceRule) setReplacementText(v string) (err error) {
-	rule.ReplacementText = v
+func (rule *ReplaceRule) setReplacementCode(v string) (err error) {
+	rule.ReplacementCode = v
 	return nil
 }

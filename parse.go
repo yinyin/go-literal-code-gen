@@ -57,7 +57,7 @@ func (w *markdownParseSpace) stateReplaceRuleZero(token markdown.Token) (nextCal
 	} else if -1 == w.replaceRule.GroupIndex {
 		err = w.replaceRule.setGroupIndex(txt)
 	} else {
-		w.replaceRule.setReplacementText(txt)
+		w.replaceRule.setReplacementCode(txt)
 	}
 	return
 }
