@@ -120,6 +120,9 @@ func (r *ReplaceResult) runReplaceWith(rule *ReplaceRule) (prefixResult, replace
 }
 
 func doReplace(rules []*ReplaceRule, text string) (result []*ReplaceResult, err error) {
+	if nil == rules {
+		return nil, nil
+	}
 	result = []*ReplaceResult{
 		{
 			PrefixLiteral: text,
