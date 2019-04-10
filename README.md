@@ -1,3 +1,7 @@
+This program generates Go-lang string constants or functions from given text.
+
+The text literals are given in Markdown-based format which is described as follows.
+
 # Build
 
 Command to build the CLI:
@@ -6,7 +10,15 @@ Command to build the CLI:
 go build github.com/yinyin/go-literal-code-gen
 ```
 
-# Example
+# Input Example
+
+Each first level heading starts a new text literal with exception of heading **Heading Code** which will define top part of code file.
+
+After heading, there are options and text content in bullets and fenced block.
+
+Options will affect how texts are pre-processed before convert to string literal.
+
+Text content is the desired literal text. An optional language parameters can be add to the fenced block to activate language specific processing.
 
 ````````markdown
 # Heading Code
@@ -14,12 +26,13 @@ go build github.com/yinyin/go-literal-code-gen
 * `tail-new-line`
 * `strip-spaces`
 
-```
+```go
 package literal
 
 import (
 	"strconv"
 )
+```
 
 # Literal Constant 1
 
@@ -51,6 +64,7 @@ Content lines will be process with the following order:
 * `strip-spaces` - Remove prefix and suffix spaces.
 * `preserve-new-line` - Generate new line character for all lines.
 * `tail-new-line` - Generate tail new line character.
+* `disable-language-filter` - Do not run language specific processing.
 
 ## Language Options
 
