@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"strings"
 
 	"gitlab.com/golang-commonmark/markdown"
 )
@@ -126,6 +127,8 @@ func (w *markdownParseSpace) stateOptionItemZero(token markdown.Token) (nextCall
 		w.currentNode.PreserveNewLine = true
 	case "tail-new-line":
 		w.currentNode.TailNewLine = true
+	case "disable-language-filter":
+		w.currentNode.DisableLanguageFilter = true
 	default:
 		log.Printf("** unknown option command (L1-0): %v", node.Content)
 	}
@@ -155,7 +158,8 @@ func (w *markdownParseSpace) stateZero(token markdown.Token) (nextCallable markd
 		return w.stateOptionItem, nil
 	case *markdown.Fence:
 		fenceToken := token.(*markdown.Fence)
-		w.currentNode.AppendContent(fenceToken.Content)
+		langType, filterArgs := parseCodeBlockLanguageParams(fenceToken.Params)
+		w.currentNode.AppendContent(fenceToken.Content, langType, filterArgs)
 	default:
 		log.Printf("- skipped: markdown (L0): %T, %#v", token, token)
 	}
@@ -172,6 +176,21 @@ func (w *markdownParseSpace) feedTokens(startCallable markdownParseCallable, tok
 		}
 	}
 	return nil
+}
+
+func parseCodeBlockLanguageParams(params string) (languageType string, filterArgs []string) {
+	aux := strings.Split(params, " ")
+	for _, arg := range aux {
+		if "" == arg {
+			continue
+		}
+		if "" == languageType {
+			languageType = arg
+		} else {
+			filterArgs = append(filterArgs, arg)
+		}
+	}
+	return
 }
 
 // ParseMarkdown parse input file as literal definition in markdown form.
