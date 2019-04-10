@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	literalcodegen "github.com/yinyin/go-literal-code-generator"
+	"github.com/yinyin/go-literal-code-gen/literalcodegen"
 )
 
 func main() {
