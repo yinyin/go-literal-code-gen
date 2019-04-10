@@ -93,8 +93,12 @@ func generateLiteralCodeAsConst(fp *os.File, entry *LiteralEntry) (err error) {
 	if _, err = fp.WriteString(codeLine); nil != err {
 		return
 	}
-	lastLineIndex := len(entry.Content) - 1
-	for idx, line := range entry.Content {
+	content, err := entry.FilteredContent()
+	if nil != err {
+		return
+	}
+	lastLineIndex := len(content) - 1
+	for idx, line := range content {
 		if err = writeSimpleLiteralText(fp, line, idx, lastLineIndex); nil != err {
 			return
 		}
@@ -109,8 +113,12 @@ func generateLiteralCodeAsBuilder(fp *os.File, entry *LiteralEntry) (err error) 
 	if _, err = fp.WriteString(codeLine); nil != err {
 		return
 	}
-	lastLineIndex := len(entry.Content) - 1
-	for idx, line := range entry.Content {
+	content, err := entry.FilteredContent()
+	if nil != err {
+		return
+	}
+	lastLineIndex := len(content) - 1
+	for idx, line := range content {
 		replaced, err := doReplace(entry.replaceRules, line)
 		if nil != err {
 			return err
