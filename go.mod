@@ -1,4 +1,4 @@
-module github.com/yinyin/go-literal-code-generator
+module github.com/yinyin/go-literal-code-gen
 
 go 1.12
 
