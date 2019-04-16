@@ -63,7 +63,7 @@ func (rule *ReplaceRule) doReplace(textLine string) (result *ReplaceResult, err 
 		return
 	}
 	replaceStart := aux[indexIdx]
-	suffixStart := aux[indexIdx]
+	suffixStart := aux[indexIdx+1]
 	result = &ReplaceResult{
 		PrefixLiteral: textLine[0:replaceStart],
 		ReplacedCode:  rule.ReplacementCode,
