@@ -19,7 +19,9 @@ func main() {
 		log.Fatalf("ERR: parsing Markdown input failed: %v", err)
 		return
 	}
+	log.Printf("** Loaded input.")
 	literalcodegen.LogLiteralCode(code)
+	log.Printf("** Going to generate code.")
 	err = literalcodegen.GenerateGoCodeFile(outputFilePath, code)
 	if nil != err {
 		log.Fatalf("ERR: failed on generating output code: %v", err)

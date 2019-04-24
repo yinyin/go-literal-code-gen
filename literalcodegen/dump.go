@@ -5,8 +5,9 @@ import (
 )
 
 func logLiteralEntry(entry *LiteralEntry) {
-	log.Printf("- %s (mode=%d): trim-space=%v, preserve-new-line=%v, tail-new-line=%v",
+	log.Printf("- %s (depth=%d; mode=%d): trim-space=%v, preserve-new-line=%v, tail-new-line=%v",
 		entry.Name,
+		entry.LevelDepth,
 		entry.TranslationMode,
 		entry.TrimSpace,
 		entry.PreserveNewLine,
