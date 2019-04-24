@@ -14,16 +14,25 @@ const TranslateAsBuilder = 2
 
 // LiteralEntry represent one literal entity to generate
 type LiteralEntry struct {
-	Name                  string
+	LevelDepth int
+	TitleText  string
+	Name       string
+	Parameters []string
+
 	TranslationMode       int
 	TrimSpace             bool
 	PreserveNewLine       bool
 	TailNewLine           bool
 	DisableLanguageFilter bool
-	Parameters            []string
-	Content               []string
-	LanguageType          string
-	LanguageFilterArgs    []string
+
+	Content            []string
+	LanguageType       string
+	LanguageFilterArgs []string
+
+	ParentEntry  *LiteralEntry
+	ChildEntries []*LiteralEntry
+
+	ExternalFilterData interface{}
 
 	replaceRules []*ReplaceRule
 }
@@ -68,6 +77,32 @@ func (entry *LiteralEntry) FilteredContent() (content []string, err error) {
 		return entry.Content, nil
 	}
 	return runLanaguageFilter(entry.LanguageType, entry.Content, entry.LanguageFilterArgs)
+}
+
+func (entry *LiteralEntry) attachToParent(parent *LiteralEntry) {
+	entry.TranslationMode = parent.TranslationMode
+	entry.TrimSpace = parent.TrimSpace
+	entry.PreserveNewLine = parent.PreserveNewLine
+	entry.TailNewLine = parent.TailNewLine
+	entry.DisableLanguageFilter = parent.DisableLanguageFilter
+	entry.LevelDepth = parent.LevelDepth + 1
+	entry.ParentEntry = parent
+	parent.ChildEntries = append(parent.ChildEntries, entry)
+}
+
+// PushDownReplaceRules pushes replacing rules to children nodes without replacing rules
+func (entry *LiteralEntry) PushDownReplaceRules() {
+	localReplaceRules := entry.replaceRules
+	if nil == localReplaceRules {
+		return
+	}
+	for _, child := range entry.ChildEntries {
+		if nil != child.replaceRules {
+			continue
+		}
+		child.replaceRules = localReplaceRules
+		child.PushDownReplaceRules()
+	}
 }
 
 // LiteralCode represent one literal code module to generate

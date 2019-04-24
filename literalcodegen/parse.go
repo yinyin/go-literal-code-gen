@@ -12,17 +12,27 @@ import (
 // TextTrapHeadingCode is the trapping constant string for detecting heading code block
 const TextTrapHeadingCode = "Heading Code"
 
+// MaxHeadingDepth is the max supported depth level of heading
+const MaxHeadingDepth = 6
+
 type markdownParseCallable func(token markdown.Token) (markdownParseCallable, error)
 
 type markdownParseSpace struct {
-	result      LiteralCode
-	currentNode *LiteralEntry
-	replaceRule *ReplaceRule
+	result       LiteralCode
+	currentNode  *LiteralEntry
+	currentChain [MaxHeadingDepth]*LiteralEntry
+	replaceRule  *ReplaceRule
 }
 
 func newMarkdownParseSpace() (result *markdownParseSpace) {
 	result = &markdownParseSpace{}
 	return
+}
+
+func (w *markdownParseSpace) wipeChainFrom(index int) {
+	for idx := index; idx < MaxHeadingDepth; idx++ {
+		w.currentChain[idx] = nil
+	}
 }
 
 func (w *markdownParseSpace) stateHeading1(token markdown.Token) (nextCallable markdownParseCallable, err error) {
@@ -31,17 +41,48 @@ func (w *markdownParseSpace) stateHeading1(token markdown.Token) (nextCallable m
 			w.currentNode = w.result.NewHeadingCode()
 			log.Printf("having heading code node")
 		} else {
-			w.currentNode = w.result.NewLiteralConstant()
-			log.Printf("having literal constant node")
+			node := w.result.NewLiteralConstant()
+			node.TitleText = textToken.Content
+			w.currentNode = node
+			w.currentChain[0] = node
+			log.Printf("having literal constant node (level=1)")
 		}
 		return w.stateZero, nil
 	}
 	return nil, fmt.Errorf("unexpected markdown node (L1-H): %T %#v", token, token)
 }
 
+func (w *markdownParseSpace) stateHeadingN(token markdown.Token) (nextCallable markdownParseCallable, err error) {
+	if textToken, ok := token.(*markdown.Inline); ok {
+		node := w.result.NewLiteralConstant()
+		node.TitleText = textToken.Content
+		parentNode := w.currentChain[0]
+		for idx := 1; idx < MaxHeadingDepth; idx++ {
+			if nil != w.currentChain[idx] {
+				parentNode = w.currentChain[idx]
+				continue
+			}
+			node.attachToParent(parentNode)
+			w.currentNode = node
+			w.currentChain[idx] = node
+			log.Printf("having literal constant node (depth=%d)", idx)
+			return w.stateZero, nil
+		}
+		return nil, nil
+	}
+	return nil, fmt.Errorf("unexpected markdown node (L-N-H): %T %#v", token, token)
+}
+
 func (w *markdownParseSpace) checkHeading(token *markdown.HeadingOpen) (nextCallable markdownParseCallable, err error) {
 	if token.HLevel == 1 {
+		w.wipeChainFrom(0)
 		return w.stateHeading1, nil
+	} else if token.HLevel <= MaxHeadingDepth {
+		w.wipeChainFrom(token.HLevel - 1)
+		if nil == w.currentChain[0] {
+			return nil, fmt.Errorf("node with depth should have parent node: %#v", token)
+		}
+		return w.stateHeadingN, nil
 	}
 	return nil, nil
 }
