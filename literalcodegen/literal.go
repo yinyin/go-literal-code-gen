@@ -6,11 +6,16 @@ import (
 	"unicode"
 )
 
-// TranslateAsConst set translation mode to constant
-const TranslateAsConst = 1
+const (
+	// TranslateAsNoop set translation to no-op
+	TranslateAsNoop = iota
 
-// TranslateAsBuilder set translation mode to builder function
-const TranslateAsBuilder = 2
+	// TranslateAsConst set translation mode to constant
+	TranslateAsConst
+
+	// TranslateAsBuilder set translation mode to builder function
+	TranslateAsBuilder
+)
 
 // LiteralEntry represent one literal entity to generate
 type LiteralEntry struct {
