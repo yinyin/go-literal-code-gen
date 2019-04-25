@@ -22,7 +22,7 @@ func main() {
 	log.Printf("** Loaded input.")
 	literalcodegen.LogLiteralCode(code)
 	log.Printf("** Going to generate code.")
-	err = literalcodegen.GenerateGoCodeFile(outputFilePath, code)
+	err = literalcodegen.GenerateGoCodeFile(outputFilePath, code, nil)
 	if nil != err {
 		log.Fatalf("ERR: failed on generating output code: %v", err)
 		return
