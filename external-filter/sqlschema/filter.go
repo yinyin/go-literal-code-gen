@@ -48,8 +48,37 @@ func NewCodeGenerateFilter() (filter *CodeGenerateFilter) {
 	return &CodeGenerateFilter{}
 }
 
+func (filter *CodeGenerateFilter) feedMetaRoutines(entries []*literalcodegen.LiteralEntry) {
+	for _, entry := range entries {
+		switch entry.TitleText {
+		case "parse revision":
+			if nil != filter.ParseRevisionCode {
+				log.Printf("WARN: over written existed ParseRevisionCode %v <= %v", filter.ParseRevisionCode, entry)
+			}
+			filter.ParseRevisionCode = entry
+		case "fetch revision":
+			if nil != filter.FetchRevisionCode {
+				log.Printf("WARN: over written existed FetchRevisionCode %v <= %v", filter.FetchRevisionCode, entry)
+			}
+			filter.FetchRevisionCode = entry
+		case "update revision":
+			if nil != filter.UpdateRevisionCode {
+				log.Printf("WARN: over written existed UpdateRevisionCode %v <= %v", filter.UpdateRevisionCode, entry)
+			}
+			filter.UpdateRevisionCode = entry
+		default:
+			log.Printf("WARN: unknown meta routine: %v", entry.TitleText)
+		}
+	}
+}
+
 func (filter *CodeGenerateFilter) feedMetaTableEntry(entry *literalcodegen.LiteralEntry) {
 	filter.MetaTableEntry = entry
+	for _, child := range entry.ChildEntries {
+		if child.TitleText == "Routines" {
+			filter.feedMetaRoutines(child.ChildEntries)
+		}
+	}
 }
 
 // PreCodeGenerate is invoked before literal code generation
