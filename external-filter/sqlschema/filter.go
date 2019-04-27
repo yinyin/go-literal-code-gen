@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 
 	"github.com/yinyin/go-literal-code-gen/literalcodegen"
 )
@@ -27,10 +28,95 @@ func compileTrapRegexps() (err error) {
 }
 
 type tableProperty struct {
-	SymbolName string
-	MetaName   string
-	Revision   int32
-	Entry      *literalcodegen.LiteralEntry
+	SymbolName       string
+	MetaName         string
+	Revision         int32
+	Entry            *literalcodegen.LiteralEntry
+	MigrationEntries []*literalcodegen.LiteralEntry
+}
+
+func newTablePropertyFromTitle1(entry *literalcodegen.LiteralEntry) (prop *tableProperty) {
+	if "" == entry.TitleText {
+		return nil
+	}
+	m := tablePropTitleTrap.FindStringSubmatchIndex(entry.TitleText)
+	if nil == m {
+		return nil
+	}
+	symbolName := entry.TitleText[m[2]:m[3]]
+	metaName := entry.TitleText[m[4]:m[5]]
+	revText := entry.TitleText[m[6]:m[7]]
+	revValue, err := strconv.ParseInt(revText, 10, 31)
+	if nil != err {
+		log.Printf("WARN: cannot parse revision value: %v, %v: %v", entry.TitleText, revText, err)
+		return nil
+	}
+	prop = &tableProperty{
+		SymbolName:       symbolName,
+		MetaName:         metaName,
+		Revision:         int32(revValue),
+		Entry:            entry,
+		MigrationEntries: make([]*literalcodegen.LiteralEntry, revValue),
+	}
+	prop.initMigrationEntries()
+	return prop
+}
+
+func (prop *tableProperty) feedMigrationEntries(entries []*literalcodegen.LiteralEntry) {
+	for _, entry := range entries {
+		if entry.TitleText == "" {
+			continue
+		}
+		m := migrateRevTitleTrap.FindStringSubmatchIndex(entry.TitleText)
+		if nil == m {
+			continue
+		}
+		targetRevText := entry.TitleText[m[2]:m[3]]
+		if targetRevValue, err := strconv.ParseInt(targetRevText, 10, 31); nil != err {
+			log.Printf("WARN: failed on parsing revision value (%v): %v, %v: %v", prop.SymbolName, targetRevText, entry.TitleText, err)
+			continue
+		} else if (targetRevValue <= 0) || (int(targetRevValue) >= len(prop.MigrationEntries)) {
+			log.Printf("WARN: revision out of boundary (%v): %v (max-rev=%v)", prop.SymbolName, targetRevValue, prop.Revision)
+			continue
+		} else {
+			prop.MigrationEntries[int(targetRevValue)] = entry
+		}
+	}
+}
+
+func (prop *tableProperty) warnEmptyMigrationEntries() {
+	for idx, targetRevEntry := range prop.MigrationEntries {
+		if (0 == idx) && (targetRevEntry != nil) {
+			log.Printf("WARN: target revision 0 with migration: %v, %v", prop.SymbolName, targetRevEntry)
+		} else if (0 != idx) && (targetRevEntry == nil) {
+			log.Printf("WARN: target revision %d with empty migration: %v, %v", idx, prop.SymbolName, targetRevEntry)
+		}
+	}
+}
+
+func (prop *tableProperty) initMigrationEntries() {
+	for _, entry := range prop.Entry.ChildEntries {
+		if entry.TitleText != "Migrations" {
+			continue
+		}
+		prop.feedMigrationEntries(entry.ChildEntries)
+	}
+	prop.warnEmptyMigrationEntries()
+}
+
+func (prop *tableProperty) setupEntriesName() {
+	prop.Entry.Name = "sqlCreate" + prop.SymbolName
+	for idx, entry := range prop.MigrationEntries {
+		if nil == entry {
+			continue
+		}
+		if entry.TranslationMode == literalcodegen.TranslateAsBuilder {
+			entry.Name = "makeSQLMigrate"
+		} else {
+			entry.Name = "sqlMigrate"
+		}
+		entry.Name += prop.SymbolName + "ToRev" + strconv.FormatInt(int64(idx), 10)
+	}
 }
 
 // CodeGenerateFilter filter and adjust literal entities for generating
@@ -41,6 +127,8 @@ type CodeGenerateFilter struct {
 	ParseRevisionCode  *literalcodegen.LiteralEntry
 	FetchRevisionCode  *literalcodegen.LiteralEntry
 	UpdateRevisionCode *literalcodegen.LiteralEntry
+
+	TableProperties []*tableProperty
 }
 
 // NewCodeGenerateFilter create an instance of CodeGenerateFilter
@@ -90,6 +178,10 @@ func (filter *CodeGenerateFilter) PreCodeGenerate(entries []*literalcodegen.Lite
 		if 0 == entry.LevelDepth {
 			if nil == filter.MetaTableEntry {
 				filter.feedMetaTableEntry(entry)
+			}
+			if prop := newTablePropertyFromTitle1(entry); nil != prop {
+				prop.setupEntriesName()
+				filter.TableProperties = append(filter.TableProperties, prop)
 			}
 		}
 	}
