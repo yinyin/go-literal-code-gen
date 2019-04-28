@@ -296,23 +296,24 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 	}
 	if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n" +
 		"\tfor rows.Next() {\n" +
-		"\tvar metaKey, metaValue string\n" +
-		"\tif err = rows.Scan(&metaKey, &metaValue); nil != err {\n" +
-		"\t\treturn nil, err\n" +
-		"\t}\n" +
-		"\tswitch metaKey {\n"); nil != err {
+		"\t\tvar metaKey, metaValue string\n" +
+		"\t\tif err = rows.Scan(&metaKey, &metaValue); nil != err {\n" +
+		"\t\t\treturn nil, err\n" +
+		"\t\t}\n" +
+		"\t\tswitch metaKey {\n"); nil != err {
 		return
 	}
 	for _, prop := range filter.TableProperties {
-		codeLine := "\tcase " + prop.metaKeySymbol() + ":\n" +
-			"\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
-			"\t\t\treturn nil, err\n" +
-			"\t\t}\n"
+		codeLine := "\t\tcase " + prop.metaKeySymbol() + ":\n" +
+			"\t\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
+			"\t\t\t\treturn nil, err\n" +
+			"\t\t\t}\n"
 		if _, err = fp.WriteString(codeLine); nil != err {
 			return
 		}
 	}
-	if _, err = fp.WriteString("\t}\n" +
+	if _, err = fp.WriteString("\t\t}\n" +
+		"\t}\n" +
 		"\treturn schemaRev, nil\n" +
 		"}\n\n" +
 		"func (m *schemaManager) updateBaseTableSchemaRevision(key string, rev int32) (err error) {\n"); nil != err {
