@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/yinyin/go-literal-code-gen/literalcodegen"
 )
@@ -286,7 +287,10 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		return
 	}
 	for _, codeLine := range filter.FetchRevisionCodeLines {
-		if _, err = fp.WriteString(codeLine); nil != err {
+		if codeLine = strings.TrimSpace(codeLine); codeLine == "" {
+			continue
+		}
+		if _, err = fp.WriteString(codeLine + "\n"); nil != err {
 			return err
 		}
 	}
@@ -315,7 +319,10 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		return
 	}
 	for _, codeLine := range filter.UpdateRevisionCodeLines {
-		if _, err = fp.WriteString(codeLine); nil != err {
+		if codeLine = strings.TrimSpace(codeLine); codeLine == "" {
+			continue
+		}
+		if _, err = fp.WriteString(codeLine + "\n"); nil != err {
 			return
 		}
 	}
