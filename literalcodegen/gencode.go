@@ -140,6 +140,8 @@ func generateLiteralCodeAsBuilder(fp *os.File, entry *LiteralEntry) (err error) 
 func generateLiteralCodes(fp *os.File, entries []*LiteralEntry) (err error) {
 	for _, entry := range entries {
 		switch entry.TranslationMode {
+		case TranslateAsNoop:
+			err = nil
 		case TranslateAsConst:
 			err = generateLiteralCodeAsConst(fp, entry)
 		case TranslateAsBuilder:
