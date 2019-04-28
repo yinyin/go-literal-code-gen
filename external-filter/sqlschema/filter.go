@@ -16,7 +16,7 @@ func compileTrapRegexps() (err error) {
 	if (nil != tablePropTitleTrap) && (nil != migrateRevTitleTrap) {
 		return nil
 	}
-	if tablePropTitleTrap, err = regexp.Compile("([a-zA-Z0-9_]+)\\s+\\(([a-zA-Z0-9_]+)\\)\\s+r\\.\\s*([0-9]+)"); nil != err {
+	if tablePropTitleTrap, err = regexp.Compile("([a-zA-Z0-9_]+)\\s+\\(([a-zA-Z0-9-_]+)\\)\\s+r\\.\\s*([0-9]+)"); nil != err {
 		log.Printf("ERR: failed on compiling regular expression for trapping table property: %v", err)
 		return
 	}
@@ -175,20 +175,58 @@ func (filter *CodeGenerateFilter) PreCodeGenerate(entries []*literalcodegen.Lite
 		return
 	}
 	for _, entry := range entries {
-		if 0 == entry.LevelDepth {
-			if nil == filter.MetaTableEntry {
-				filter.feedMetaTableEntry(entry)
-			}
-			if prop := newTablePropertyFromTitle1(entry); nil != prop {
-				prop.setupEntriesName()
-				filter.TableProperties = append(filter.TableProperties, prop)
-			}
+		if 0 != entry.LevelDepth {
+			continue
 		}
+		if prop := newTablePropertyFromTitle1(entry); nil != prop {
+			prop.setupEntriesName()
+			filter.TableProperties = append(filter.TableProperties, prop)
+		} else {
+			continue
+		}
+		if nil == filter.MetaTableEntry {
+			filter.feedMetaTableEntry(entry)
+		}
+	}
+	log.Printf("sql-schema filter: had %d table entries", len(filter.TableProperties))
+	return nil
+}
+
+/*
+const metaXRunMetaSchemaRev = "xrun-meta.schema"
+const currentXRunMetaSchemaRev = 1
+
+*/
+
+func (filter *CodeGenerateFilter) generateSchemaRevisionConstant(fp *os.File) (err error) {
+	for _, prop := range filter.TableProperties {
+		codeLine := "const metaKey" + prop.SymbolName + "SchemaRev = " + strconv.Quote(prop.MetaName+".schema") + "\n"
+		if _, err = fp.WriteString(codeLine); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\n"); nil != err {
+		return
+	}
+	for _, prop := range filter.TableProperties {
+		codeLine := "const current" + prop.SymbolName + "SchemaRev = " + strconv.FormatInt(int64(prop.Revision), 10) + "\n"
+		if _, err = fp.WriteString(codeLine); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\n"); nil != err {
+		return
 	}
 	return nil
 }
 
 // GenerateExternalCode is invoked after literal code generation
 func (filter *CodeGenerateFilter) GenerateExternalCode(fp *os.File, entries []*literalcodegen.LiteralEntry) (err error) {
+	if _, err = fp.WriteString("// ** SQL schema external filter\n\n"); nil != err {
+		return
+	}
+	if err = filter.generateSchemaRevisionConstant(fp); nil != err {
+		return
+	}
 	return nil
 }
