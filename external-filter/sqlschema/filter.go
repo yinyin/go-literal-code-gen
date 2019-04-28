@@ -62,6 +62,40 @@ func newTablePropertyFromTitle1(entry *literalcodegen.LiteralEntry) (prop *table
 	return prop
 }
 
+func (prop *tableProperty) fetchRoutines() (revisionParseCodeText string, revisionFetchCodeTexts, revisionUpdateCodeTexts []string, err error) {
+	var routineEntries []*literalcodegen.LiteralEntry
+	for _, child := range prop.Entry.ChildEntries {
+		if child.TitleText != "Routines" {
+			continue
+		}
+		routineEntries = child.ChildEntries
+	}
+	if nil == routineEntries {
+		return
+	}
+	for _, entry := range routineEntries {
+		switch entry.TitleText {
+		case "parse revision":
+			if revisionParseCodeText, err = entry.FilteredContentLine(); nil != err {
+				return
+			}
+		case "fetch revision":
+			revisionFetchCodeTexts, err = entry.FilteredContent()
+			if nil != err {
+				return
+			}
+		case "update revision":
+			revisionUpdateCodeTexts, err = entry.FilteredContent()
+			if nil != err {
+				return
+			}
+		default:
+			log.Printf("WARN: (%v) unknown routine: %v", prop.Entry.TitleText, entry.TitleText)
+		}
+	}
+	return
+}
+
 func (prop *tableProperty) feedMigrationEntries(entries []*literalcodegen.LiteralEntry) {
 	for _, entry := range entries {
 		if entry.TitleText == "" {
@@ -75,11 +109,12 @@ func (prop *tableProperty) feedMigrationEntries(entries []*literalcodegen.Litera
 		if targetRevValue, err := strconv.ParseInt(targetRevText, 10, 31); nil != err {
 			log.Printf("WARN: failed on parsing revision value (%v): %v, %v: %v", prop.SymbolName, targetRevText, entry.TitleText, err)
 			continue
-		} else if (targetRevValue <= 0) || (int(targetRevValue) >= len(prop.MigrationEntries)) {
+		} else if (targetRevValue <= 1) || (int(targetRevValue) > len(prop.MigrationEntries)) {
 			log.Printf("WARN: revision out of boundary (%v): %v (max-rev=%v)", prop.SymbolName, targetRevValue, prop.Revision)
 			continue
 		} else {
-			prop.MigrationEntries[int(targetRevValue)] = entry
+			sourceRevValue := int(targetRevValue) - 1
+			prop.MigrationEntries[sourceRevValue] = entry
 		}
 	}
 }
@@ -105,17 +140,12 @@ func (prop *tableProperty) initMigrationEntries() {
 }
 
 func (prop *tableProperty) setupEntriesName() {
-	prop.Entry.Name = "sqlCreate" + prop.SymbolName
+	prop.Entry.Name = prop.sqlCreateSymbol()
 	for idx, entry := range prop.MigrationEntries {
 		if nil == entry {
 			continue
 		}
-		if entry.TranslationMode == literalcodegen.TranslateAsBuilder {
-			entry.Name = "makeSQLMigrate"
-		} else {
-			entry.Name = "sqlMigrate"
-		}
-		entry.Name += prop.SymbolName + "ToRev" + strconv.FormatInt(int64(idx), 10)
+		entry.Name = prop.migrateEntrySymbol(entry, int32(idx))
 	}
 }
 
@@ -127,14 +157,28 @@ func (prop *tableProperty) currentRevisionSymbol() string {
 	return "current" + prop.SymbolName + "SchemaRev"
 }
 
+func (prop *tableProperty) sqlCreateSymbol() string {
+	return "sqlCreate" + prop.SymbolName
+}
+
+func (prop *tableProperty) migrateEntrySymbol(entry *literalcodegen.LiteralEntry, sourceRev int32) string {
+	var symbolPrefix string
+	if entry.TranslationMode == literalcodegen.TranslateAsBuilder {
+		symbolPrefix = "makeSQLMigrate"
+	} else {
+		symbolPrefix = "sqlMigrate"
+	}
+	return symbolPrefix + prop.SymbolName + "ToRev" + strconv.FormatInt(int64(sourceRev+1), 10)
+}
+
+func (prop *tableProperty) upgradeRoutineSymbol() string {
+	return "upgradeSchema" + prop.SymbolName
+}
+
 // CodeGenerateFilter filter and adjust literal entities for generating
 // SQL schema code module
 type CodeGenerateFilter struct {
 	MetaTableEntry *literalcodegen.LiteralEntry
-
-	ParseRevisionCode  *literalcodegen.LiteralEntry
-	FetchRevisionCode  *literalcodegen.LiteralEntry
-	UpdateRevisionCode *literalcodegen.LiteralEntry
 
 	ParseRevisionCodeText   string
 	FetchRevisionCodeLines  []string
@@ -146,72 +190,6 @@ type CodeGenerateFilter struct {
 // NewCodeGenerateFilter create an instance of CodeGenerateFilter
 func NewCodeGenerateFilter() (filter *CodeGenerateFilter) {
 	return &CodeGenerateFilter{}
-}
-
-func (filter *CodeGenerateFilter) feedMetaRoutines(entries []*literalcodegen.LiteralEntry) {
-	for _, entry := range entries {
-		switch entry.TitleText {
-		case "parse revision":
-			if nil != filter.ParseRevisionCode {
-				log.Printf("WARN: over written existed ParseRevisionCode %v <= %v", filter.ParseRevisionCode, entry)
-			}
-			filter.ParseRevisionCode = entry
-		case "fetch revision":
-			if nil != filter.FetchRevisionCode {
-				log.Printf("WARN: over written existed FetchRevisionCode %v <= %v", filter.FetchRevisionCode, entry)
-			}
-			filter.FetchRevisionCode = entry
-		case "update revision":
-			if nil != filter.UpdateRevisionCode {
-				log.Printf("WARN: over written existed UpdateRevisionCode %v <= %v", filter.UpdateRevisionCode, entry)
-			}
-			filter.UpdateRevisionCode = entry
-		default:
-			log.Printf("WARN: unknown meta routine: %v", entry.TitleText)
-		}
-	}
-}
-
-func (filter *CodeGenerateFilter) feedMetaTableEntry(entry *literalcodegen.LiteralEntry) {
-	filter.MetaTableEntry = entry
-	for _, child := range entry.ChildEntries {
-		if child.TitleText == "Routines" {
-			filter.feedMetaRoutines(child.ChildEntries)
-		}
-	}
-}
-
-func (filter *CodeGenerateFilter) fetchParseRevisionCodeText() (err error) {
-	codeLines, err := filter.ParseRevisionCode.FilteredContent()
-	if nil != err {
-		return
-	}
-	codeLineCount := len(codeLines)
-	if 1 > codeLineCount {
-		log.Printf("WARN: empty ParseRevisionCode")
-		filter.ParseRevisionCodeText = ""
-	} else {
-		if codeLineCount > 1 {
-			log.Printf("WARN: ParseRevisionCode has more than 1 lines, only first line will be use: %d", codeLineCount)
-		}
-		filter.ParseRevisionCodeText = codeLines[0]
-	}
-	return nil
-}
-
-func (filter *CodeGenerateFilter) fetchPredefinedCodeLines() (err error) {
-	if err = filter.fetchParseRevisionCodeText(); nil != err {
-		return
-	}
-	filter.FetchRevisionCodeLines, err = filter.FetchRevisionCode.FilteredContent()
-	if nil != err {
-		return
-	}
-	filter.UpdateRevisionCodeLines, err = filter.UpdateRevisionCode.FilteredContent()
-	if nil != err {
-		return
-	}
-	return nil
 }
 
 // PreCodeGenerate is invoked before literal code generation
@@ -230,18 +208,21 @@ func (filter *CodeGenerateFilter) PreCodeGenerate(entries []*literalcodegen.Lite
 			continue
 		}
 		if nil == filter.MetaTableEntry {
-			filter.feedMetaTableEntry(entry)
+			filter.MetaTableEntry = entry
 		}
 	}
 	log.Printf("sql-schema filter: had %d table entries", len(filter.TableProperties))
 	return nil
 }
 
-/*
-const metaXRunMetaSchemaRev = "xrun-meta.schema"
-const currentXRunMetaSchemaRev = 1
-
-*/
+func (filter *CodeGenerateFilter) cacheBaseRoutines() (err error) {
+	if len(filter.TableProperties) < 1 {
+		return nil
+	}
+	metaTableProp := filter.TableProperties[0]
+	filter.ParseRevisionCodeText, filter.FetchRevisionCodeLines, filter.UpdateRevisionCodeLines, err = metaTableProp.fetchRoutines()
+	return err
+}
 
 func (filter *CodeGenerateFilter) generateSchemaRevisionConstant(fp *os.File) (err error) {
 	for _, prop := range filter.TableProperties {
@@ -330,7 +311,7 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 	if _, err = fp.WriteString("\t}\n" +
 		"\treturn schemaRev, nil\n" +
 		"}\n\n" +
-		"func (m *schemaManager) updateTableSchemaRevision(key string, rev int32) (err error) {"); nil != err {
+		"func (m *schemaManager) updateBaseTableSchemaRevision(key string, rev int32) (err error) {\n"); nil != err {
 		return
 	}
 	for _, codeLine := range filter.UpdateRevisionCodeLines {
@@ -342,12 +323,71 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		"}\n\n"); nil != err {
 		return
 	}
+	if _, err = fp.WriteString("func (m *schemaManager) execBaseSchemaModification(sqlStmt, schemaMetaKey string, targetRev int32) (err error) {\n" +
+		"\tif _, err = m.conn.Exec(sqlStmt); nil != err {\n" +
+		"\t\treturn\n" +
+		"\t}\n" +
+		"\treturn m.updateBaseTableSchemaRevision(schemaMetaKey, targetRev)\n" +
+		"}\n\n"); nil != err {
+		return
+	}
+	return nil
+}
+
+func (filter *CodeGenerateFilter) generateBaseSchemaUpgradeRoutine(fp *os.File, prop *tableProperty) (err error) {
+	if _, err = fp.WriteString("func (m *schemaManager) " + prop.upgradeRoutineSymbol() + "(currentRev int32) (schemaChanged bool, err error) {\n" +
+		"\tswitch currentRev {\n" +
+		"\tcase " + prop.currentRevisionSymbol() + ":\n" +
+		"\t\treturn false, nil\n" +
+		"\tcase 0:\n" +
+		"\t\tif err = m.execBaseSchemaModification(" + prop.sqlCreateSymbol() + ", " + prop.metaKeySymbol() + ", " + prop.currentRevisionSymbol() + "); nil == err {\n" +
+		"\t\t\treturn true, nil\n" +
+		"\t\t}\n"); nil != err {
+		return
+	}
+	for sourceRev, entry := range prop.MigrationEntries {
+		if nil == entry {
+			continue
+		}
+		if _, err = fp.WriteString("\tcase " + strconv.FormatInt(int64(sourceRev), 10) + ":\n" +
+			"\t\tif err = m.execBaseSchemaModification(" + prop.migrateEntrySymbol(entry, int32(sourceRev)) + ", " + prop.metaKeySymbol() + ", " + prop.currentRevisionSymbol() + "); nil == err {\n" +
+			"\t\t\treturn true, nil\n" +
+			"\t\t}\n"); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\tdefault:\n" +
+		"\t\terr = fmt.Errorf(\"unknown " + prop.MetaName + " schema revision: %d\", currentRev)\n" +
+		"\t}\n" +
+		"\treturn\n" +
+		"}\n\n"); nil != err {
+		return
+	}
+	return nil
+}
+
+func (filter *CodeGenerateFilter) generateSchemaUpgradeCodes(fp *os.File) (err error) {
+	for _, prop := range filter.TableProperties {
+		switch prop.Entry.TranslationMode {
+		case literalcodegen.TranslateAsConst:
+			err = filter.generateBaseSchemaUpgradeRoutine(fp, prop)
+		default:
+			if _, err = fp.WriteString("// upgrade routine for symbol not generated: " + prop.SymbolName + "\n"); nil != err {
+				return
+			}
+		}
+		if nil != err {
+			return
+		}
+	}
 	return nil
 }
 
 // GenerateExternalCode is invoked after literal code generation
 func (filter *CodeGenerateFilter) GenerateExternalCode(fp *os.File, entries []*literalcodegen.LiteralEntry) (err error) {
-	filter.fetchPredefinedCodeLines()
+	if err = filter.cacheBaseRoutines(); nil != err {
+		return
+	}
 	if _, err = fp.WriteString("// ** SQL schema external filter\n\n"); nil != err {
 		return
 	}
@@ -358,6 +398,9 @@ func (filter *CodeGenerateFilter) GenerateExternalCode(fp *os.File, entries []*l
 		return
 	}
 	if err = filter.generateSchemaManager(fp); nil != err {
+		return
+	}
+	if err = filter.generateSchemaUpgradeCodes(fp); nil != err {
 		return
 	}
 	return nil
