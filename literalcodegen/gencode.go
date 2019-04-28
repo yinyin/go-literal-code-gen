@@ -140,7 +140,7 @@ func generateLiteralCodeAsBuilder(fp *os.File, entry *LiteralEntry) (err error) 
 
 func generateLiteralCodes(fp *os.File, entries []*LiteralEntry) (err error) {
 	for _, entry := range entries {
-		if entry.Name == "" {
+		if (entry.Name == "") || (entry.Name == "-") {
 			log.Printf("skip: %v", entry.TitleText)
 			continue
 		}
