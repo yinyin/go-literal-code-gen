@@ -119,6 +119,14 @@ func (prop *tableProperty) setupEntriesName() {
 	}
 }
 
+func (prop *tableProperty) metaKeySymbol() string {
+	return "metaKey" + prop.SymbolName + "SchemaRev"
+}
+
+func (prop *tableProperty) currentRevisionSymbol() string {
+	return "current" + prop.SymbolName + "SchemaRev"
+}
+
 // CodeGenerateFilter filter and adjust literal entities for generating
 // SQL schema code module
 type CodeGenerateFilter struct {
@@ -127,6 +135,10 @@ type CodeGenerateFilter struct {
 	ParseRevisionCode  *literalcodegen.LiteralEntry
 	FetchRevisionCode  *literalcodegen.LiteralEntry
 	UpdateRevisionCode *literalcodegen.LiteralEntry
+
+	ParseRevisionCodeText   string
+	FetchRevisionCodeLines  []string
+	UpdateRevisionCodeLines []string
 
 	TableProperties []*tableProperty
 }
@@ -169,6 +181,39 @@ func (filter *CodeGenerateFilter) feedMetaTableEntry(entry *literalcodegen.Liter
 	}
 }
 
+func (filter *CodeGenerateFilter) fetchParseRevisionCodeText() (err error) {
+	codeLines, err := filter.ParseRevisionCode.FilteredContent()
+	if nil != err {
+		return
+	}
+	codeLineCount := len(codeLines)
+	if 1 > codeLineCount {
+		log.Printf("WARN: empty ParseRevisionCode")
+		filter.ParseRevisionCodeText = ""
+	} else {
+		if codeLineCount > 1 {
+			log.Printf("WARN: ParseRevisionCode has more than 1 lines, only first line will be use: %d", codeLineCount)
+		}
+		filter.ParseRevisionCodeText = codeLines[0]
+	}
+	return nil
+}
+
+func (filter *CodeGenerateFilter) fetchPredefinedCodeLines() (err error) {
+	if err = filter.fetchParseRevisionCodeText(); nil != err {
+		return
+	}
+	filter.FetchRevisionCodeLines, err = filter.FetchRevisionCode.FilteredContent()
+	if nil != err {
+		return
+	}
+	filter.UpdateRevisionCodeLines, err = filter.UpdateRevisionCode.FilteredContent()
+	if nil != err {
+		return
+	}
+	return nil
+}
+
 // PreCodeGenerate is invoked before literal code generation
 func (filter *CodeGenerateFilter) PreCodeGenerate(entries []*literalcodegen.LiteralEntry) (err error) {
 	if err = compileTrapRegexps(); nil != err {
@@ -200,7 +245,7 @@ const currentXRunMetaSchemaRev = 1
 
 func (filter *CodeGenerateFilter) generateSchemaRevisionConstant(fp *os.File) (err error) {
 	for _, prop := range filter.TableProperties {
-		codeLine := "const metaKey" + prop.SymbolName + "SchemaRev = " + strconv.Quote(prop.MetaName+".schema") + "\n"
+		codeLine := "const " + prop.metaKeySymbol() + " = " + strconv.Quote(prop.MetaName+".schema") + "\n"
 		if _, err = fp.WriteString(codeLine); nil != err {
 			return
 		}
@@ -209,7 +254,7 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionConstant(fp *os.File) (e
 		return
 	}
 	for _, prop := range filter.TableProperties {
-		codeLine := "const current" + prop.SymbolName + "SchemaRev = " + strconv.FormatInt(int64(prop.Revision), 10) + "\n"
+		codeLine := "const " + prop.currentRevisionSymbol() + " = " + strconv.FormatInt(int64(prop.Revision), 10) + "\n"
 		if _, err = fp.WriteString(codeLine); nil != err {
 			return
 		}
@@ -220,12 +265,99 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionConstant(fp *os.File) (e
 	return nil
 }
 
+func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err error) {
+	if _, err = fp.WriteString("type schemaRevision struct {\n"); nil != err {
+		return
+	}
+	for _, prop := range filter.TableProperties {
+		codeLine := "\t" + prop.SymbolName + " int32\n"
+		if _, err = fp.WriteString(codeLine); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("}\n\n"); nil != err {
+		return
+	}
+	if _, err = fp.WriteString("func (rev *schemaRevision) IsUpToDate() bool {\n"); nil != err {
+		return
+	}
+	for _, prop := range filter.TableProperties {
+		codeLine := "\tif " + prop.currentRevisionSymbol() + " != rev." + prop.SymbolName + " {\n" +
+			"\t\treturn false\n" +
+			"\t}\n"
+		if _, err = fp.WriteString(codeLine); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\treturn true\n}\n\n"); nil != err {
+		return
+	}
+	return nil
+}
+
+func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error) {
+	if _, err = fp.WriteString("type schemaManager struct {\n" +
+		"\tconn *sql.DB\n" +
+		"}\n\n"); nil != err {
+		return
+	}
+	if _, err = fp.WriteString("func (m *schemaManager) FetchSchemaRevision() (schemaRev *schemaRevision, err error) {\n"); nil != err {
+		return
+	}
+	for _, codeLine := range filter.FetchRevisionCodeLines {
+		if _, err = fp.WriteString(codeLine); nil != err {
+			return err
+		}
+	}
+	if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n" +
+		"\tfor rows.Next() {\n" +
+		"\tvar metaKey, metaValue string\n" +
+		"\tif err = rows.Scan(&metaKey, &metaValue); nil != err {\n" +
+		"\t\treturn nil, err\n" +
+		"\t}\n" +
+		"\tswitch metaKey {\n"); nil != err {
+		return
+	}
+	for _, prop := range filter.TableProperties {
+		codeLine := "\tcase" + prop.metaKeySymbol() + ":\n" +
+			"\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
+			"\t\t\treturn nil, err\n" +
+			"\t\t}\n"
+		if _, err = fp.WriteString(codeLine); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\t}\n" +
+		"\treturn schemaRev, nil\n" +
+		"}\n\n" +
+		"func (m *schemaManager) updateTableSchemaRevision(key string, rev int32) (err error) {"); nil != err {
+		return
+	}
+	for _, codeLine := range filter.UpdateRevisionCodeLines {
+		if _, err = fp.WriteString(codeLine); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\treturn\n" +
+		"}\n\n"); nil != err {
+		return
+	}
+	return nil
+}
+
 // GenerateExternalCode is invoked after literal code generation
 func (filter *CodeGenerateFilter) GenerateExternalCode(fp *os.File, entries []*literalcodegen.LiteralEntry) (err error) {
+	filter.fetchPredefinedCodeLines()
 	if _, err = fp.WriteString("// ** SQL schema external filter\n\n"); nil != err {
 		return
 	}
 	if err = filter.generateSchemaRevisionConstant(fp); nil != err {
+		return
+	}
+	if err = filter.generateSchemaRevisionStruct(fp); nil != err {
+		return
+	}
+	if err = filter.generateSchemaManager(fp); nil != err {
 		return
 	}
 	return nil
