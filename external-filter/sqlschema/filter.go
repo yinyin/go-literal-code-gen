@@ -300,7 +300,7 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		return
 	}
 	for _, prop := range filter.TableProperties {
-		codeLine := "\tcase" + prop.metaKeySymbol() + ":\n" +
+		codeLine := "\tcase " + prop.metaKeySymbol() + ":\n" +
 			"\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
 			"\t\t\treturn nil, err\n" +
 			"\t\t}\n"
