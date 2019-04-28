@@ -163,7 +163,7 @@ func generateLiteralCodes(fp *os.File, entries []*LiteralEntry) (err error) {
 
 // GenerateGoCodeFile generate code and save to given file path.
 func GenerateGoCodeFile(path string, code *LiteralCode, externalFilter ExternalFilter) (err error) {
-	fp, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+	fp, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if nil != err {
 		return
 	}
