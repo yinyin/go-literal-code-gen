@@ -76,12 +76,29 @@ func (entry *LiteralEntry) appendReplaceRule(rule *ReplaceRule) {
 	entry.replaceRules = append(entry.replaceRules, rule)
 }
 
-// FilteredContent retun content filtered with language filter
+// FilteredContent return content filtered with language filter
 func (entry *LiteralEntry) FilteredContent() (content []string, err error) {
 	if entry.DisableLanguageFilter {
 		return entry.Content, nil
 	}
 	return runLanaguageFilter(entry.LanguageType, entry.Content, entry.LanguageFilterArgs)
+}
+
+// FilteredContentLine return first line from filtered content
+func (entry *LiteralEntry) FilteredContentLine() (contentLine string, err error) {
+	content, err := entry.FilteredContent()
+	if nil != err {
+		return
+	}
+	contentCount := len(content)
+	if 1 > contentCount {
+		log.Printf("WARN (FilteredContentLine): empty %v", entry.TitleText)
+		return "", nil
+	}
+	if contentCount > 1 {
+		log.Printf("WARN (FilteredContentLine): entry %v has more than 1 line, only first line will be return: %d", entry.TitleText, contentCount)
+	}
+	return content[0], nil
 }
 
 func (entry *LiteralEntry) attachToParent(parent *LiteralEntry) {
