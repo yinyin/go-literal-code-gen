@@ -28,6 +28,16 @@ func compileTrapRegexps() (err error) {
 	return
 }
 
+func parametersToArguments(params []string) (args []string) {
+	for _, param := range params {
+		aux := strings.SplitN(param, " ", 2)
+		if len(aux) >= 1 {
+			args = append(args, aux[0])
+		}
+	}
+	return
+}
+
 type tableProperty struct {
 	SymbolName       string
 	MetaName         string
@@ -375,11 +385,46 @@ func (filter *CodeGenerateFilter) generateBaseSchemaUpgradeRoutine(fp *os.File, 
 	return nil
 }
 
+func (filter *CodeGenerateFilter) generateBuilderSchemaUpgradeRoutine(fp *os.File, prop *tableProperty) (err error) {
+	// TODO: update revision
+	if _, err = fp.WriteString("func (m *schemaManager) " + prop.upgradeRoutineSymbol() + "(currentRev int32, " + strings.Join(prop.Entry.Parameters, ", ") + ") (schemaChanged bool, err error) {\n" +
+		"\tswitch currentRev {\n" +
+		"\tcase " + prop.currentRevisionSymbol() + ":\n" +
+		"\t\treturn false, nil\n" +
+		"\tcase 0:\n" +
+		"\t\tif err = m.execBaseSchemaModification(" + prop.sqlCreateSymbol() + "(" + strings.Join(parametersToArguments(prop.Entry.Parameters), ", ") + ")" + ", " + prop.metaKeySymbol() + ", " + prop.currentRevisionSymbol() + "); nil == err {\n" +
+		"\t\t\treturn true, nil\n" +
+		"\t\t}\n"); nil != err {
+		return
+	}
+	for sourceRev, entry := range prop.MigrationEntries {
+		if nil == entry {
+			continue
+		}
+		if _, err = fp.WriteString("\tcase " + strconv.FormatInt(int64(sourceRev), 10) + ":\n" +
+			"\t\tif err = m.execBaseSchemaModification(" + prop.migrateEntrySymbol(entry, int32(sourceRev)) + "(" + strings.Join(parametersToArguments(prop.Entry.Parameters), ", ") + ")" + ", " + prop.metaKeySymbol() + ", " + prop.currentRevisionSymbol() + "); nil == err {\n" +
+			"\t\t\treturn true, nil\n" +
+			"\t\t}\n"); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\tdefault:\n" +
+		"\t\terr = fmt.Errorf(\"unknown " + prop.MetaName + " schema revision: %d\", currentRev)\n" +
+		"\t}\n" +
+		"\treturn\n" +
+		"}\n\n"); nil != err {
+		return
+	}
+	return nil
+}
+
 func (filter *CodeGenerateFilter) generateSchemaUpgradeCodes(fp *os.File) (err error) {
 	for _, prop := range filter.TableProperties {
 		switch prop.Entry.TranslationMode {
 		case literalcodegen.TranslateAsConst:
 			err = filter.generateBaseSchemaUpgradeRoutine(fp, prop)
+		case literalcodegen.TranslateAsBuilder:
+			err = filter.generateBuilderSchemaUpgradeRoutine(fp, prop)
 		default:
 			if _, err = fp.WriteString("// upgrade routine for symbol not generated: " + prop.SymbolName + "\n"); nil != err {
 				return
