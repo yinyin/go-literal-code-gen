@@ -271,7 +271,8 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err
 			return
 		}
 	}
-	if _, err = fp.WriteString("\treturn true\n}\n\n"); nil != err {
+	if _, err = fp.WriteString("\treturn true\n" +
+		"}\n\n"); nil != err {
 		return
 	}
 	return nil
