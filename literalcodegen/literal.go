@@ -27,6 +27,7 @@ type LiteralEntry struct {
 	TranslationMode       int
 	TrimSpace             bool
 	PreserveNewLine       bool
+	KeepEmptyLine         bool
 	TailNewLine           bool
 	DisableLanguageFilter bool
 
@@ -49,6 +50,9 @@ func NewLiteralEntry() *LiteralEntry {
 
 // AppendContent add given content line by line and transform with specified configuration
 func (entry *LiteralEntry) AppendContent(content, langType string, langFilterArgs []string) {
+	if entry.KeepEmptyLine {
+		content = strings.TrimRightFunc(content, unicode.IsSpace)
+	}
 	lineBuffer := strings.Split(content, "\n")
 	lastLineIndex := len(lineBuffer) - 1
 	for idx, line := range lineBuffer {
@@ -59,7 +63,7 @@ func (entry *LiteralEntry) AppendContent(content, langType string, langFilterArg
 		}
 		if ((idx == lastLineIndex) && (entry.TailNewLine)) || entry.PreserveNewLine {
 			line = line + "\n"
-		} else if "" == line {
+		} else if ("" == line) && (!entry.KeepEmptyLine) {
 			continue
 		}
 		entry.Content = append(entry.Content, line)
@@ -105,6 +109,7 @@ func (entry *LiteralEntry) attachToParent(parent *LiteralEntry) {
 	entry.TranslationMode = parent.TranslationMode
 	entry.TrimSpace = parent.TrimSpace
 	entry.PreserveNewLine = parent.PreserveNewLine
+	entry.KeepEmptyLine = parent.KeepEmptyLine
 	entry.TailNewLine = parent.TailNewLine
 	entry.DisableLanguageFilter = parent.DisableLanguageFilter
 	entry.LevelDepth = parent.LevelDepth + 1

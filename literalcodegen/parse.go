@@ -166,6 +166,8 @@ func (w *markdownParseSpace) stateOptionItemZero(token markdown.Token) (nextCall
 		w.currentNode.TrimSpace = true
 	case "preserve-new-line":
 		w.currentNode.PreserveNewLine = true
+	case "keep-empty-line":
+		w.currentNode.KeepEmptyLine = true
 	case "tail-new-line":
 		w.currentNode.TailNewLine = true
 	case "disable-language-filter":
