@@ -15,7 +15,8 @@ func generateHeadingCode(fp *os.File, entries []*LiteralEntry) (err error) {
 				return err
 			}
 			uch := []rune(line)
-			if '\n' != uch[len(uch)-1] {
+			lch := len(uch) - 1
+			if (lch < 0) || ('\n' != uch[lch]) {
 				if _, err = fp.WriteString("\n"); nil != err {
 					return err
 				}
