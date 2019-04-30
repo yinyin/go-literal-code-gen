@@ -49,11 +49,17 @@ type CodeGenerateFilter struct {
 	UpdateRevisionCodeLines []string
 
 	TableProperties []*tableProperty
+
+	GeneratedTODOs int
 }
 
 // NewCodeGenerateFilter create an instance of CodeGenerateFilter
 func NewCodeGenerateFilter() (filter *CodeGenerateFilter) {
 	return &CodeGenerateFilter{}
+}
+
+func (filter *CodeGenerateFilter) increaseTODOCount() {
+	filter.GeneratedTODOs++
 }
 
 // PreCodeGenerate is invoked before literal code generation
@@ -316,6 +322,7 @@ func (filter *CodeGenerateFilter) generateBuilderExecSchemaModificationRoutine(f
 		revisionUpdateCodeTexts = []string{
 			"\t// TODO: revision update code (Routines > update revision) will placed here",
 		}
+		filter.increaseTODOCount()
 	}
 	if _, err = fp.WriteString("func (m *schemaManager) " + prop.execSchemaModificationSymbol() + "(sqlStmt string, " + strings.Join(prop.Entry.Parameters, ", ") + ", targetRev int32) (err error) {\n" +
 		"\tif _, err = m.conn.Exec(sqlStmt); nil != err {\n" +
@@ -427,6 +434,7 @@ func (filter *CodeGenerateFilter) generateBuilderFetchSchemaRevisionRoutine(fp *
 		revisionFetchCodeTexts = []string{
 			"// TODO: revision fetch code (Routines > fetch revision) will placed here",
 		}
+		filter.increaseTODOCount()
 	}
 	for _, codeLine := range revisionFetchCodeTexts {
 		if _, err = fp.WriteString(codeLine + "\n"); nil != err {
@@ -481,6 +489,14 @@ func (filter *CodeGenerateFilter) GenerateExternalCode(fp *os.File, entries []*l
 	}
 	if err = filter.generateSchemaUpgradeCodes(fp); nil != err {
 		return
+	}
+	if _, err = fp.WriteString("\n" + fmt.Sprintf("// ** Generated code for %d table entries\n", len(filter.TableProperties))); nil != err {
+		return
+	}
+	if filter.GeneratedTODOs > 0 {
+		if _, err = fp.WriteString(fmt.Sprintf("// There are %d TODO tag(s) generated. Pleace fulfill missing code before proceed.", filter.GeneratedTODOs)); nil != err {
+			return
+		}
 	}
 	return nil
 }
