@@ -1,6 +1,7 @@
 package sqlschema
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"regexp"
@@ -114,7 +115,15 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err
 		return
 	}
 	for _, prop := range filter.TableProperties {
-		codeLine := "\t" + prop.SymbolName + " int32\n"
+		var codeLine string
+		switch prop.Entry.TranslationMode {
+		case literalcodegen.TranslateAsConst:
+			codeLine = "\t" + prop.SymbolName + " int32\n"
+		case literalcodegen.TranslateAsBuilder:
+			codeLine = "\t" + prop.SymbolName + " []*" + prop.schemaRevisionRecordStructSymbol() + "\n"
+		default:
+			codeLine = fmt.Sprintf("\t// TODO: unknown translation mode %v for symbol [%v]", prop.Entry.TranslationMode, prop.SymbolName)
+		}
 		if _, err = fp.WriteString(codeLine); nil != err {
 			return
 		}
@@ -126,11 +135,23 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err
 		return
 	}
 	for _, prop := range filter.TableProperties {
-		codeLine := "\tif " + prop.currentRevisionSymbol() + " != rev." + prop.SymbolName + " {\n" +
-			"\t\treturn false\n" +
-			"\t}\n"
-		if _, err = fp.WriteString(codeLine); nil != err {
-			return
+		var codeLine string
+		switch prop.Entry.TranslationMode {
+		case literalcodegen.TranslateAsConst:
+			codeLine = "\tif " + prop.currentRevisionSymbol() + " != rev." + prop.SymbolName + " {\n" +
+				"\t\treturn false\n" +
+				"\t}\n"
+		case literalcodegen.TranslateAsBuilder:
+			codeLine = "\tfor _, revRecord := range rev." + prop.SymbolName + " {\n" +
+				"\t\tif " + prop.currentRevisionSymbol() + " != revRecord.currentRev {\n" +
+				"\t\t\treturn false\n" +
+				"\t\t}\n" +
+				"\t}\n"
+		}
+		if codeLine != "" {
+			if _, err = fp.WriteString(codeLine); nil != err {
+				return
+			}
 		}
 	}
 	if _, err = fp.WriteString("\treturn true\n" +
@@ -167,17 +188,39 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		return
 	}
 	for _, prop := range filter.TableProperties {
-		codeLine := "\t\tcase " + prop.metaKeySymbol() + ":\n" +
-			"\t\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
-			"\t\t\t\treturn nil, err\n" +
-			"\t\t\t}\n"
-		if _, err = fp.WriteString(codeLine); nil != err {
-			return
+		var codeLine string
+		switch prop.Entry.TranslationMode {
+		case literalcodegen.TranslateAsConst:
+			codeLine = "\t\tcase " + prop.metaKeySymbol() + ":\n" +
+				"\t\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
+				"\t\t\t\treturn nil, err\n" +
+				"\t\t\t}\n"
+		}
+		if codeLine != "" {
+			if _, err = fp.WriteString(codeLine); nil != err {
+				return
+			}
 		}
 	}
 	if _, err = fp.WriteString("\t\t}\n" +
-		"\t}\n" +
-		"\treturn schemaRev, nil\n" +
+		"\t}\n"); nil != err {
+		return
+	}
+	for _, prop := range filter.TableProperties {
+		var codeLine string
+		switch prop.Entry.TranslationMode {
+		case literalcodegen.TranslateAsBuilder:
+			codeLine = "\tif schemaRev." + prop.SymbolName + ", err = m." + prop.fetchSchemaRevisionRecordsSymbol() + "(); nil != err {\n" +
+				"\t\treturn nil, err\n" +
+				"\t}\n"
+		}
+		if codeLine != "" {
+			if _, err = fp.WriteString(codeLine); nil != err {
+				return
+			}
+		}
+	}
+	if _, err = fp.WriteString("\treturn schemaRev, nil\n" +
 		"}\n\n" +
 		"func (m *schemaManager) updateBaseTableSchemaRevision(key string, rev int32) (err error) {\n"); nil != err {
 		return
@@ -201,6 +244,20 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		"\treturn m.updateBaseTableSchemaRevision(schemaMetaKey, targetRev)\n" +
 		"}\n\n"); nil != err {
 		return
+	}
+	for _, prop := range filter.TableProperties {
+		switch prop.Entry.TranslationMode {
+		case literalcodegen.TranslateAsBuilder:
+			if err = filter.generateBuilderSchemaRevisionStructure(fp, prop); nil != err {
+				return
+			}
+			if err = filter.generateBuilderFetchSchemaRevisionRoutine(fp, prop); nil != err {
+				return
+			}
+			if err = filter.generateBuilderExecSchemaModificationRoutine(fp, prop); nil != err {
+				return
+			}
+		}
 	}
 	return nil
 }
@@ -278,6 +335,27 @@ func (filter *CodeGenerateFilter) generateBuilderExecSchemaModificationRoutine(f
 	return nil
 }
 
+func (filter *CodeGenerateFilter) generateBuilderSchemaUpgradeWithRevisionRecordsRoutine(fp *os.File, prop *tableProperty) (err error) {
+	var params []string
+	for _, param := range parametersToArguments(prop.Entry.Parameters) {
+		params = append(params, "revRec."+param)
+	}
+	paramAsArgs := strings.Join(params, ", ")
+	if _, err = fp.WriteString("func (m *schemaManager) " + prop.upgradeWithRevisionRecordsRoutineSymbol() + "(revisionRecords []*" + prop.schemaRevisionRecordStructSymbol() + ") (schemaChanged bool, err error) {\n" +
+		"\tfor _, revRec := range revisionRecords {\n" +
+		"\t\tif changed, err := m." + prop.upgradeRoutineSymbol() + "(revRec.currentRev, " + paramAsArgs + "); nil != err {\n" +
+		"\t\t\treturn schemaChanged, fmt.Errorf(\"upgrade " + prop.SymbolName + " failed (%#v): %#v\", revRec, err)\n" +
+		"\t\t} else if changed {\n" +
+		"\t\t\tschemaChanged = true\n" +
+		"\t\t}\n" +
+		"\t}\n" +
+		"\treturn schemaChanged, nil\n" +
+		"}\n\n"); nil != err {
+		return
+	}
+	return
+}
+
 func (filter *CodeGenerateFilter) generateBuilderSchemaUpgradeRoutine(fp *os.File, prop *tableProperty) (err error) {
 	paramAsArgs := strings.Join(parametersToArguments(prop.Entry.Parameters), ", ")
 	if _, err = fp.WriteString("func (m *schemaManager) " + prop.upgradeRoutineSymbol() + "(currentRev int32, " + strings.Join(prop.Entry.Parameters, ", ") + ") (schemaChanged bool, err error) {\n" +
@@ -324,16 +402,54 @@ func (filter *CodeGenerateFilter) generateBuilderSchemaUpgradeRoutine(fp *os.Fil
 	return nil
 }
 
+func (filter *CodeGenerateFilter) generateBuilderSchemaRevisionStructure(fp *os.File, prop *tableProperty) (err error) {
+	if _, err = fp.WriteString("type " + prop.schemaRevisionRecordStructSymbol() + " struct {\n" +
+		"\tcurrentRev int32\n"); nil != err {
+		return
+	}
+	for _, param := range prop.Entry.Parameters {
+		if _, err = fp.WriteString("\t" + param + "\n"); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("}\n\n"); nil != err {
+		return
+	}
+	return
+}
+
+func (filter *CodeGenerateFilter) generateBuilderFetchSchemaRevisionRoutine(fp *os.File, prop *tableProperty) (err error) {
+	if _, err = fp.WriteString("func (m *schemaManager) " + prop.fetchSchemaRevisionRecordsSymbol() + "() (revisionRecords []*" + prop.schemaRevisionRecordStructSymbol() + ", err error) {\n"); nil != err {
+		return
+	}
+	_, revisionFetchCodeTexts, _, err := prop.fetchRoutines()
+	if len(revisionFetchCodeTexts) == 0 {
+		revisionFetchCodeTexts = []string{
+			"// TODO: revision fetch code (Routines > fetch revision) will placed here",
+		}
+	}
+	for _, codeLine := range revisionFetchCodeTexts {
+		if _, err = fp.WriteString(codeLine + "\n"); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\treturn\n" +
+		"}\n\n"); nil != err {
+		return
+	}
+	return
+}
+
 func (filter *CodeGenerateFilter) generateSchemaUpgradeCodes(fp *os.File) (err error) {
 	for _, prop := range filter.TableProperties {
 		switch prop.Entry.TranslationMode {
 		case literalcodegen.TranslateAsConst:
 			err = filter.generateBaseSchemaUpgradeRoutine(fp, prop)
 		case literalcodegen.TranslateAsBuilder:
-			if err = filter.generateBuilderExecSchemaModificationRoutine(fp, prop); nil != err {
+			if err = filter.generateBuilderSchemaUpgradeRoutine(fp, prop); nil != err {
 				return
 			}
-			err = filter.generateBuilderSchemaUpgradeRoutine(fp, prop)
+			err = filter.generateBuilderSchemaUpgradeWithRevisionRecordsRoutine(fp, prop)
 		default:
 			if _, err = fp.WriteString("// upgrade routine for symbol not generated: " + prop.SymbolName + "\n"); nil != err {
 				return

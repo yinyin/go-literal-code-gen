@@ -152,9 +152,27 @@ func (prop *tableProperty) migrateEntrySymbol(entry *literalcodegen.LiteralEntry
 }
 
 func (prop *tableProperty) upgradeRoutineSymbol() string {
+	if prop.Entry.TranslationMode == literalcodegen.TranslateAsConst {
+		return "UpgradeSchema" + prop.SymbolName
+	}
 	return "upgradeSchema" + prop.SymbolName
+}
+
+func (prop *tableProperty) upgradeWithRevisionRecordsRoutineSymbol() string {
+	if prop.Entry.TranslationMode == literalcodegen.TranslateAsBuilder {
+		return "UpgradeSchemaOf" + prop.SymbolName
+	}
+	return "upgradeSchema" + prop.SymbolName + "WithRevisions"
 }
 
 func (prop *tableProperty) execSchemaModificationSymbol() string {
 	return "exec" + prop.SymbolName + "SchemaModification"
+}
+
+func (prop *tableProperty) schemaRevisionRecordStructSymbol() string {
+	return "schemaRevisionOf" + prop.SymbolName
+}
+
+func (prop *tableProperty) fetchSchemaRevisionRecordsSymbol() string {
+	return "fetchSchemaRevisionOf" + prop.SymbolName
 }
