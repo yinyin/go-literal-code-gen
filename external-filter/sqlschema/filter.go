@@ -39,6 +39,14 @@ func parametersToArguments(params []string) (args []string) {
 	return
 }
 
+func writeTrimmedCodeLine(fp *os.File, codeLine string) (err error) {
+	if codeLine = strings.TrimSpace(codeLine); codeLine == "" {
+		return nil
+	}
+	_, err = fp.WriteString(codeLine + "\n")
+	return
+}
+
 // CodeGenerateFilter filter and adjust literal entities for generating
 // SQL schema code module
 type CodeGenerateFilter struct {
@@ -177,11 +185,8 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		return
 	}
 	for _, codeLine := range filter.FetchRevisionCodeLines {
-		if codeLine = strings.TrimSpace(codeLine); codeLine == "" {
-			continue
-		}
-		if _, err = fp.WriteString(codeLine + "\n"); nil != err {
-			return err
+		if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
+			return
 		}
 	}
 	if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n" +
@@ -232,10 +237,7 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		return
 	}
 	for _, codeLine := range filter.UpdateRevisionCodeLines {
-		if codeLine = strings.TrimSpace(codeLine); codeLine == "" {
-			continue
-		}
-		if _, err = fp.WriteString(codeLine + "\n"); nil != err {
+		if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
 			return
 		}
 	}
@@ -331,7 +333,7 @@ func (filter *CodeGenerateFilter) generateBuilderExecSchemaModificationRoutine(f
 		return
 	}
 	for _, codeLine := range revisionUpdateCodeTexts {
-		if _, err = fp.WriteString(codeLine + "\n"); nil != err {
+		if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
 			return
 		}
 	}
@@ -437,7 +439,7 @@ func (filter *CodeGenerateFilter) generateBuilderFetchSchemaRevisionRoutine(fp *
 		filter.increaseTODOCount()
 	}
 	for _, codeLine := range revisionFetchCodeTexts {
-		if _, err = fp.WriteString(codeLine + "\n"); nil != err {
+		if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
 			return
 		}
 	}
