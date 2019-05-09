@@ -20,6 +20,7 @@ func parseSQLFilterArgs(filterArgs []string) (removeComments bool) {
 func sqlContentFilter(codeContent, filterArgs []string) (result []string, err error) {
 	removeComments := parseSQLFilterArgs(filterArgs)
 	lastLineIndex := len(codeContent) - 1
+	notNeedSpace := true
 	for idx, line := range codeContent {
 		if removeComments {
 			stripped := strings.TrimLeftFunc(line, unicode.IsSpace)
@@ -34,6 +35,14 @@ func sqlContentFilter(codeContent, filterArgs []string) (result []string, err er
 				}
 				return false
 			})
+		}
+		if ch := []rune(line); len(ch) > 0 {
+			firstCh := ch[0]
+			lastCh := ch[len(ch)-1]
+			if (!notNeedSpace) && (firstCh >= 'A') && (firstCh <= 'Z') {
+				line = " " + line
+			}
+			notNeedSpace = ((lastCh == '(') || (lastCh == ','))
 		}
 		result = append(result, line)
 	}
