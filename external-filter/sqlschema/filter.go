@@ -80,7 +80,7 @@ func (filter *CodeGenerateFilter) PreCodeGenerate(entries []*literalcodegen.Lite
 			continue
 		}
 		if prop := newTablePropertyFromTitle1(entry); nil != prop {
-			prop.setupEntriesName()
+			prop.setupEntriesPrototypes()
 			filter.TableProperties = append(filter.TableProperties, prop)
 		} else {
 			continue

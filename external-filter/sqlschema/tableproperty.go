@@ -114,17 +114,27 @@ func (prop *tableProperty) initMigrationEntries() {
 		if entry.TitleText != "Migrations" {
 			continue
 		}
+		entry.PushDownReplaceRules()
 		prop.feedMigrationEntries(entry.ChildEntries)
 	}
 	prop.warnEmptyMigrationEntries()
 }
 
-func (prop *tableProperty) setupEntriesName() {
+func (prop *tableProperty) updateMigrationEntryParameters(entry *literalcodegen.LiteralEntry) {
+	if entry.TranslationMode == literalcodegen.TranslateAsBuilder {
+		if ("" == entry.Name) && (0 == len(entry.Parameters)) {
+			entry.Parameters = prop.Entry.Parameters
+		}
+	}
+}
+
+func (prop *tableProperty) setupEntriesPrototypes() {
 	prop.Entry.Name = prop.sqlCreateSymbol()
 	for idx, entry := range prop.MigrationEntries {
 		if nil == entry {
 			continue
 		}
+		prop.updateMigrationEntryParameters(entry)
 		entry.Name = prop.migrateEntrySymbol(entry, int32(idx))
 	}
 }
