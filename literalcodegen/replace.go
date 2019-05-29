@@ -3,23 +3,54 @@ package literalcodegen
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
 )
 
-// ReplaceRule represent literal replacing rule for generating builder function
-type ReplaceRule struct {
-	RegexTrap       *regexp.Regexp
+// ReplaceTarget points out matching group and replacement code
+type ReplaceTarget struct {
 	GroupIndex      int
 	ReplacementCode string
 }
 
+func (target *ReplaceTarget) setGroupIndex(v string) (err error) {
+	v = strings.TrimFunc(v, func(r rune) bool {
+		return !unicode.IsNumber(r)
+	})
+	idx, err := strconv.ParseInt(v, 10, 31)
+	if nil != err {
+		return
+	}
+	target.GroupIndex = int(idx)
+	if target.GroupIndex < 0 {
+		target.GroupIndex = 0
+	}
+	return nil
+}
+
+func (target *ReplaceTarget) setReplacementCode(v string) (err error) {
+	target.ReplacementCode = v
+	return nil
+}
+
+// OrderReplaceTarget is a sorting type for ReplaceTarget
+type OrderReplaceTarget []ReplaceTarget
+
+func (a OrderReplaceTarget) Len() int           { return len(a) }
+func (a OrderReplaceTarget) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a OrderReplaceTarget) Less(i, j int) bool { return a[i].GroupIndex < a[j].GroupIndex }
+
+// ReplaceRule represent literal replacing rule for generating builder function
+type ReplaceRule struct {
+	RegexTrap *regexp.Regexp
+	Targets   []ReplaceTarget
+}
+
 func newReplaceRule() *ReplaceRule {
 	return &ReplaceRule{
-		RegexTrap:       nil,
-		GroupIndex:      -1,
-		ReplacementCode: "",
+		RegexTrap: nil,
 	}
 }
 
@@ -33,44 +64,43 @@ func (rule *ReplaceRule) setRegexTrap(v string) (err error) {
 	return nil
 }
 
-func (rule *ReplaceRule) setGroupIndex(v string) (err error) {
-	v = strings.TrimFunc(v, func(r rune) bool {
-		return !unicode.IsNumber(r)
-	})
-	idx, err := strconv.ParseInt(v, 10, 31)
-	if nil != err {
-		return
-	}
-	rule.GroupIndex = int(idx)
-	if rule.GroupIndex < 0 {
-		rule.GroupIndex = 0
-	}
-	return nil
+func (rule *ReplaceRule) addTarget() (target *ReplaceTarget) {
+	aux := ReplaceTarget{}
+	rule.Targets = append(rule.Targets, aux)
+	return &aux
 }
 
-func (rule *ReplaceRule) setReplacementCode(v string) (err error) {
-	rule.ReplacementCode = v
-	return nil
+func (rule *ReplaceRule) sortTarget() {
+	sort.Sort(OrderReplaceTarget(rule.Targets))
 }
 
-func (rule *ReplaceRule) doReplace(textLine string) (result *ReplaceResult, err error) {
+func (rule *ReplaceRule) doReplace(textLine string) (results []*ReplaceResult, err error) {
 	aux := rule.RegexTrap.FindStringSubmatchIndex(textLine)
 	if nil == aux {
 		return
 	}
-	indexIdx := rule.GroupIndex * 2
-	if (indexIdx + 1) >= len(aux) {
-		err = fmt.Errorf("given match group index (%d) out of range (%d/2): rule=%#v, %v", rule.GroupIndex, len(aux), rule.RegexTrap, textLine)
-		return
+	targetBoundIndex := len(rule.Targets) - 1
+	previousSuffixStart := 0
+	for targetIndex, target := range rule.Targets {
+		indexIdx := target.GroupIndex * 2
+		if (indexIdx + 1) >= len(aux) {
+			err = fmt.Errorf("[target-%d] given match group index (%d) out of range (%d/2): rule=%#v, %v", targetIndex, target.GroupIndex, len(aux), rule.RegexTrap, textLine)
+			return
+		}
+		replaceStart := aux[indexIdx]
+		suffixStart := aux[indexIdx+1]
+		result := &ReplaceResult{
+			PrefixLiteral: textLine[previousSuffixStart:replaceStart],
+			ReplacedCode:  target.ReplacementCode,
+		}
+		if targetIndex == targetBoundIndex {
+			result.SuffixLiteral = textLine[suffixStart:]
+		} else {
+			previousSuffixStart = suffixStart
+		}
+		results = append(results, result)
 	}
-	replaceStart := aux[indexIdx]
-	suffixStart := aux[indexIdx+1]
-	result = &ReplaceResult{
-		PrefixLiteral: textLine[0:replaceStart],
-		ReplacedCode:  rule.ReplacementCode,
-		SuffixLiteral: textLine[suffixStart:],
-	}
-	return result, nil
+	return results, nil
 }
 
 // ReplaceResult is thre result of one replace operation.
@@ -94,23 +124,23 @@ func (r *ReplaceResult) isSimpleLiteral() bool {
 	return false
 }
 
-func (r *ReplaceResult) runReplaceWith(rule *ReplaceRule) (prefixResult, replacedResult, suffixResult *ReplaceResult, err error) {
+func (r *ReplaceResult) runReplaceWith(rule *ReplaceRule) (prefixResults []*ReplaceResult, replacedResult *ReplaceResult, suffixResults []*ReplaceResult, err error) {
 	replacedResult = &ReplaceResult{
 		PrefixLiteral: r.PrefixLiteral,
 		ReplacedCode:  r.ReplacedCode,
 		SuffixLiteral: r.SuffixLiteral,
 	}
 	if "" != r.PrefixLiteral {
-		if prefixResult, err = rule.doReplace(r.PrefixLiteral); nil != err {
+		if prefixResults, err = rule.doReplace(r.PrefixLiteral); nil != err {
 			return
-		} else if nil != prefixResult {
+		} else if len(prefixResults) > 0 {
 			replacedResult.PrefixLiteral = ""
 		}
 	}
 	if "" != r.SuffixLiteral {
-		if suffixResult, err = rule.doReplace(r.SuffixLiteral); nil != err {
+		if suffixResults, err = rule.doReplace(r.SuffixLiteral); nil != err {
 			return
-		} else if nil != suffixResult {
+		} else if len(suffixResults) > 0 {
 			replacedResult.SuffixLiteral = ""
 		}
 	}
@@ -134,18 +164,18 @@ func doReplace(rules []*ReplaceRule, text string) (result []*ReplaceResult, err 
 		buffer := result
 		result = nil
 		for _, aux := range buffer {
-			prefixResult, replacedResult, suffixResult, err := aux.runReplaceWith(rule)
+			prefixResults, replacedResult, suffixResults, err := aux.runReplaceWith(rule)
 			if nil != err {
 				return nil, err
 			}
-			if nil != prefixResult {
-				result = append(result, prefixResult)
+			if len(prefixResults) > 0 {
+				result = append(result, prefixResults...)
 			}
 			if nil != replacedResult {
 				result = append(result, replacedResult)
 			}
-			if nil != suffixResult {
-				result = append(result, suffixResult)
+			if len(suffixResults) > 0 {
+				result = append(result, suffixResults...)
 			}
 		}
 	}

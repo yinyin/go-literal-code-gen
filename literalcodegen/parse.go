@@ -18,10 +18,11 @@ const MaxHeadingDepth = 6
 type markdownParseCallable func(token markdown.Token) (markdownParseCallable, error)
 
 type markdownParseSpace struct {
-	result       LiteralCode
-	currentNode  *LiteralEntry
-	currentChain [MaxHeadingDepth]*LiteralEntry
-	replaceRule  *ReplaceRule
+	result        LiteralCode
+	currentNode   *LiteralEntry
+	currentChain  [MaxHeadingDepth]*LiteralEntry
+	replaceRule   *ReplaceRule
+	replaceTarget *ReplaceTarget
 }
 
 func newMarkdownParseSpace() (result *markdownParseSpace) {
@@ -96,10 +97,13 @@ func (w *markdownParseSpace) stateReplaceRuleZero(token markdown.Token) (nextCal
 	txt := node.Content
 	if nil == w.replaceRule.RegexTrap {
 		err = w.replaceRule.setRegexTrap(txt)
-	} else if -1 == w.replaceRule.GroupIndex {
-		err = w.replaceRule.setGroupIndex(txt)
+		w.replaceTarget = nil
+	} else if nil == w.replaceTarget {
+		w.replaceTarget = w.replaceRule.addTarget()
+		err = w.replaceTarget.setGroupIndex(txt)
 	} else {
-		w.replaceRule.setReplacementCode(txt)
+		w.replaceTarget.setReplacementCode(txt)
+		w.replaceTarget = nil
 	}
 	return
 }
@@ -111,9 +115,11 @@ func (w *markdownParseSpace) stateReplaceRule(token markdown.Token) (nextCallabl
 		w.feedTokens(w.stateReplaceRuleZero, node.Children)
 	case *markdown.BulletListClose:
 		if nil != w.replaceRule.RegexTrap {
+			w.replaceRule.sortTarget()
 			w.currentNode.appendReplaceRule(w.replaceRule)
 		}
 		w.replaceRule = nil
+		w.replaceTarget = nil
 		return w.stateOptionItem, nil
 	default:
 		log.Printf("- skipped: replace-rule (L2-R): %T, %v", token, token)
