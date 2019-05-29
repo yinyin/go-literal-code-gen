@@ -24,6 +24,7 @@ func newReplaceRule() *ReplaceRule {
 }
 
 func (rule *ReplaceRule) setRegexTrap(v string) (err error) {
+	v = strings.TrimSpace(v)
 	regexRule, err := regexp.Compile(v)
 	if nil != err {
 		return err
