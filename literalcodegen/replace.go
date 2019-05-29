@@ -36,7 +36,7 @@ func (target *ReplaceTarget) setReplacementCode(v string) (err error) {
 }
 
 // OrderReplaceTarget is a sorting type for ReplaceTarget
-type OrderReplaceTarget []ReplaceTarget
+type OrderReplaceTarget []*ReplaceTarget
 
 func (a OrderReplaceTarget) Len() int           { return len(a) }
 func (a OrderReplaceTarget) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -45,7 +45,7 @@ func (a OrderReplaceTarget) Less(i, j int) bool { return a[i].GroupIndex < a[j].
 // ReplaceRule represent literal replacing rule for generating builder function
 type ReplaceRule struct {
 	RegexTrap *regexp.Regexp
-	Targets   []ReplaceTarget
+	Targets   []*ReplaceTarget
 }
 
 func newReplaceRule() *ReplaceRule {
@@ -65,9 +65,9 @@ func (rule *ReplaceRule) setRegexTrap(v string) (err error) {
 }
 
 func (rule *ReplaceRule) addTarget() (target *ReplaceTarget) {
-	aux := ReplaceTarget{}
-	rule.Targets = append(rule.Targets, aux)
-	return &aux
+	target = &ReplaceTarget{}
+	rule.Targets = append(rule.Targets, target)
+	return target
 }
 
 func (rule *ReplaceRule) sortTarget() {
