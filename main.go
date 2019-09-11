@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 
+	rungofmt "github.com/yinyin/go-run-gofmt"
+
 	"github.com/yinyin/go-literal-code-gen/literalcodegen"
 )
 
@@ -28,5 +30,7 @@ func main() {
 		log.Fatalf("ERR: failed on generating output code: %v", err)
 		return
 	}
+	err = rungofmt.RunGoFmt(outputFilePath, true)
+	log.Printf("INFO: gofmt stopped with %v.", err)
 	log.Printf("** Completed.")
 }
