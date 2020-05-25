@@ -5,10 +5,11 @@ import (
 )
 
 func logLiteralEntry(entry *LiteralEntry) {
-	log.Printf("- %s (depth=%d; mode=%d): trim-space=%v, preserve-new-line=%v, tail-new-line=%v",
+	log.Printf("- %s (depth=%d; mode=%d; subwork=%d): trim-space=%v, preserve-new-line=%v, tail-new-line=%v",
 		entry.Name,
 		entry.LevelDepth,
 		entry.TranslationMode,
+		entry.SubWork,
 		entry.TrimSpace,
 		entry.PreserveNewLine,
 		entry.TailNewLine)
@@ -23,6 +24,10 @@ func logLiteralEntry(entry *LiteralEntry) {
 	log.Printf("  > replace (%d):", len(entry.replaceRules))
 	for idx, rule := range entry.replaceRules {
 		log.Printf("   %d: %#v", idx, rule)
+	}
+	if entry.BuilderPrepare != nil {
+		log.Printf("  > builder-prepare (%v) ||", entry.BuilderPrepare)
+		logLiteralEntry(entry.BuilderPrepare)
 	}
 }
 

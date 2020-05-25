@@ -6,9 +6,12 @@ import (
 	"unicode"
 )
 
+// TranslationModeType represent type of translation mode.
+type TranslationModeType int
+
 const (
 	// TranslateAsNoop set translation to no-op
-	TranslateAsNoop = iota
+	TranslateAsNoop TranslationModeType = iota
 
 	// TranslateAsConst set translation mode to constant
 	TranslateAsConst
@@ -17,14 +20,27 @@ const (
 	TranslateAsBuilder
 )
 
+// SubWorkType represent type of sub-works.
+// SubWork is associated code such as preparing part for builder.
+type SubWorkType int
+
+const (
+	// NotSubWork indicate given entry is not a sub-work.
+	NotSubWork SubWorkType = iota
+
+	// SubWorkBuilderPrepare indicate given entry is code block for builder prepare.
+	SubWorkBuilderPrepare
+)
+
 // LiteralEntry represent one literal entity to generate
 type LiteralEntry struct {
 	LevelDepth int
 	TitleText  string
 	Name       string
 	Parameters []string
+	SubWork    SubWorkType
 
-	TranslationMode       int
+	TranslationMode       TranslationModeType
 	TrimSpace             bool
 	PreserveNewLine       bool
 	KeepEmptyLine         bool
@@ -34,6 +50,8 @@ type LiteralEntry struct {
 	Content            []string
 	LanguageType       string
 	LanguageFilterArgs []string
+
+	BuilderPrepare *LiteralEntry
 
 	ParentEntry  *LiteralEntry
 	ChildEntries []*LiteralEntry
@@ -46,6 +64,18 @@ type LiteralEntry struct {
 // NewLiteralEntry create a new instance of LiteralEntry and set properties to default values
 func NewLiteralEntry() *LiteralEntry {
 	return &LiteralEntry{}
+}
+
+// GetBuilderPrepareNode return a builder prepare node.
+// Existed one will be return if such node existed.
+func (entry *LiteralEntry) GetBuilderPrepareNode() *LiteralEntry {
+	if entry.BuilderPrepare == nil {
+		entry.BuilderPrepare = &LiteralEntry{
+			SubWork:     SubWorkBuilderPrepare,
+			ParentEntry: entry,
+		}
+	}
+	return entry.BuilderPrepare
 }
 
 // AppendContent add given content line by line and transform with specified configuration

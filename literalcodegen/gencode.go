@@ -8,19 +8,26 @@ import (
 	"strings"
 )
 
-func generateHeadingCode(fp *os.File, entries []*LiteralEntry) (err error) {
-	for _, entry := range entries {
-		for _, line := range entry.Content {
-			if _, err = fp.WriteString(line); nil != err {
+func generatePassthroughGoCode(fp *os.File, entry *LiteralEntry) (err error) {
+	for _, line := range entry.Content {
+		if _, err = fp.WriteString(line); nil != err {
+			return err
+		}
+		uch := []rune(line)
+		lch := len(uch) - 1
+		if (lch < 0) || ('\n' != uch[lch]) {
+			if _, err = fp.WriteString("\n"); nil != err {
 				return err
 			}
-			uch := []rune(line)
-			lch := len(uch) - 1
-			if (lch < 0) || ('\n' != uch[lch]) {
-				if _, err = fp.WriteString("\n"); nil != err {
-					return err
-				}
-			}
+		}
+	}
+	return nil
+}
+
+func generateHeadingCode(fp *os.File, entries []*LiteralEntry) (err error) {
+	for _, entry := range entries {
+		if err = generatePassthroughGoCode(fp, entry); nil != err {
+			return
 		}
 		if _, err = fp.WriteString("\n"); nil != err {
 			return err
@@ -110,8 +117,17 @@ func generateLiteralCodeAsConst(fp *os.File, entry *LiteralEntry) (err error) {
 }
 
 func generateLiteralCodeAsBuilder(fp *os.File, entry *LiteralEntry) (err error) {
-	codeLine := "func " + entry.Name + "(" + strings.Join(entry.Parameters, ", ") + ") string {\n" +
-		"\treturn "
+	var codeLine string
+	codeLine = "func " + entry.Name + "(" + strings.Join(entry.Parameters, ", ") + ") string {\n"
+	if _, err = fp.WriteString(codeLine); nil != err {
+		return
+	}
+	if entry.BuilderPrepare != nil {
+		if err = generatePassthroughGoCode(fp, entry.BuilderPrepare); nil != err {
+			return
+		}
+	}
+	codeLine = "\treturn "
 	if _, err = fp.WriteString(codeLine); nil != err {
 		return
 	}

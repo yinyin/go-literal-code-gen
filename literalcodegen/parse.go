@@ -12,6 +12,12 @@ import (
 // TextTrapHeadingCode is the trapping constant string for detecting heading code block
 const TextTrapHeadingCode = "Heading Code"
 
+// TextTrapBuilderPrepare is trapping constant for prepare code of builder function.
+const TextTrapBuilderPrepare = "- Builder Prepare"
+
+// TextTrapContentCode is optional trapping constant for content code
+const TextTrapContentCode = "- Content Code"
+
 // MaxHeadingDepth is the max supported depth level of heading
 const MaxHeadingDepth = 6
 
@@ -53,6 +59,38 @@ func (w *markdownParseSpace) stateHeading1(token markdown.Token) (nextCallable m
 	return nil, fmt.Errorf("unexpected markdown node (L1-H): %T %#v", token, token)
 }
 
+func (w *markdownParseSpace) stateHeading2(token markdown.Token) (nextCallable markdownParseCallable, err error) {
+	if textToken, ok := token.(*markdown.Inline); ok {
+		switch textToken.Content {
+		case TextTrapBuilderPrepare:
+			if w.currentNode == nil {
+				return nil, fmt.Errorf("expecting base node for builder prepare (L2-H): %T %#v", token, token)
+			}
+			if w.currentNode.BuilderPrepare != nil {
+				log.Printf("WARN: builder prepare already existed (L2-H): [%s] %T %#v", w.currentNode.TitleText, token, token)
+			}
+			node := w.currentNode.GetBuilderPrepareNode()
+			node.TitleText = textToken.Content
+			w.currentNode = node
+			return w.stateZero, nil
+		case TextTrapContentCode:
+			if w.currentNode == nil {
+				return nil, fmt.Errorf("expecting a working node for builder prepare (L2-H): %T %#v", token, token)
+			}
+			if w.currentNode.SubWork != NotSubWork {
+				w.currentNode = w.currentNode.ParentEntry
+				log.Printf("DEBUG: restore !!")
+			}
+			return w.stateZero, nil
+		}
+	}
+	w.wipeChainFrom(2 - 1)
+	if nil == w.currentChain[0] {
+		return nil, fmt.Errorf("node with depth should have parent node (L2-H): %#v", token)
+	}
+	return w.stateHeadingN(token)
+}
+
 func (w *markdownParseSpace) stateHeadingN(token markdown.Token) (nextCallable markdownParseCallable, err error) {
 	if textToken, ok := token.(*markdown.Inline); ok {
 		node := w.result.NewLiteralConstant()
@@ -78,6 +116,8 @@ func (w *markdownParseSpace) checkHeading(token *markdown.HeadingOpen) (nextCall
 	if token.HLevel == 1 {
 		w.wipeChainFrom(0)
 		return w.stateHeading1, nil
+	} else if token.HLevel == 2 {
+		return w.stateHeading2, nil
 	} else if token.HLevel <= MaxHeadingDepth {
 		w.wipeChainFrom(token.HLevel - 1)
 		if nil == w.currentChain[0] {
