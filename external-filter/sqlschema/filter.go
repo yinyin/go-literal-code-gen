@@ -177,6 +177,8 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err
 
 func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error) {
 	if _, err = fp.WriteString("type schemaManager struct {\n" +
+		"\tmetaStoreTableName string\n" +
+		"\tctx context.Context\n" +
 		"\tconn *sql.DB\n" +
 		"}\n\n"); nil != err {
 		return
@@ -327,7 +329,7 @@ func (filter *CodeGenerateFilter) generateBuilderExecSchemaModificationRoutine(f
 		filter.increaseTODOCount()
 	}
 	if _, err = fp.WriteString("func (m *schemaManager) " + prop.execSchemaModificationSymbol() + "(sqlStmt string, " + strings.Join(prop.Entry.Parameters, ", ") + ", targetRev int32) (err error) {\n" +
-		"\tif _, err = m.conn.Exec(sqlStmt); nil != err {\n" +
+		"\tif _, err = m.conn.ExecContext(m.ctx, sqlStmt); nil != err {\n" +
 		"\t\treturn\n" +
 		"\t}\n"); nil != err {
 		return
