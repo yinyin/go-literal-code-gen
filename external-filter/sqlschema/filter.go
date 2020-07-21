@@ -125,6 +125,21 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionConstant(fp *os.File) (e
 }
 
 func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err error) {
+	for _, prop := range filter.TableProperties {
+		if prop.Entry.TranslationMode != literalcodegen.TranslateAsBuilder {
+			continue
+		}
+		if _, err = fp.WriteString("func " + prop.isSchemasUpToDateSymbol() + "(revRecords []*" + prop.schemaRevisionRecordStructSymbol() + ") bool {\n" +
+			"\tfor _, recRec := range revRecords {\n" +
+			"\t\tif " + prop.currentRevisionSymbol() + " != recRec.currentRev {\n" +
+			"\t\t\treturn false\n" +
+			"\t\t}\n" +
+			"\t}\n" +
+			"\treturn true\n" +
+			"}\n\n"); nil != err {
+			return
+		}
+	}
 	if _, err = fp.WriteString("type schemaRevision struct {\n"); nil != err {
 		return
 	}
@@ -156,10 +171,8 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err
 				"\t\treturn false\n" +
 				"\t}\n"
 		case literalcodegen.TranslateAsBuilder:
-			codeLine = "\tfor _, revRecord := range rev." + prop.SymbolName + " {\n" +
-				"\t\tif " + prop.currentRevisionSymbol() + " != revRecord.currentRev {\n" +
-				"\t\t\treturn false\n" +
-				"\t\t}\n" +
+			codeLine = "\tif !" + prop.isSchemasUpToDateSymbol() + "(rev." + prop.SymbolName + ") {\n" +
+				"\t\treturn false\n" +
 				"\t}\n"
 		}
 		if codeLine != "" {

@@ -179,6 +179,10 @@ func (prop *tableProperty) execSchemaModificationSymbol() string {
 	return "exec" + prop.SymbolName + "SchemaModification"
 }
 
+func (prop *tableProperty) isSchemasUpToDateSymbol() string {
+	return "is" + prop.SymbolName + "SchemasUpToDate"
+}
+
 func (prop *tableProperty) schemaRevisionRecordStructSymbol() string {
 	return "schemaRevisionOf" + prop.SymbolName
 }
