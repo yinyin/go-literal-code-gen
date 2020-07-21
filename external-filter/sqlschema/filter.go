@@ -200,7 +200,7 @@ func (filter *CodeGenerateFilter) hasConstTableProperty() bool {
 
 func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error) {
 	if _, err = fp.WriteString("type schemaManager struct {\n" +
-		"\tmetaStoreTableName string\n" +
+		"\treferenceTableName string\n" +
 		"\tctx context.Context\n" +
 		"\tconn *sql.DB\n" +
 		"}\n\n"); nil != err {
