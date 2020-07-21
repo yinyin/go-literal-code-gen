@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	inputFilePath, outputFilePath, externalFilter, err := parseCommandParam()
+	inputFilePath, outputFilePath, genDoNotEdit, externalFilter, err := parseCommandParam()
 	if nil != err {
 		log.Fatalf("ERR: cannot have required parameters: %v", err)
 		return
@@ -25,7 +25,7 @@ func main() {
 	log.Printf("** Loaded input.")
 	literalcodegen.LogLiteralCode(code)
 	log.Printf("** Going to generate code.")
-	err = literalcodegen.GenerateGoCodeFile(outputFilePath, code, externalFilter)
+	err = literalcodegen.GenerateGoCodeFile(outputFilePath, code, genDoNotEdit, externalFilter)
 	if nil != err {
 		log.Fatalf("ERR: failed on generating output code: %v", err)
 		return

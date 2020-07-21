@@ -15,10 +15,11 @@ var ErrInputFileRequired = errors.New("Input file is required")
 // ErrOutputFileRequired indicates output file path is missing.
 var ErrOutputFileRequired = errors.New("Output file is required")
 
-func parseCommandParam() (inputFilePath, outputFilePath string, externalFilter literalcodegen.ExternalFilter, err error) {
+func parseCommandParam() (inputFilePath, outputFilePath string, genDoNotEdit bool, externalFilter literalcodegen.ExternalFilter, err error) {
 	var useSQLSchemaFilter bool
 	flag.StringVar(&inputFilePath, "in", "", "path to input file")
 	flag.StringVar(&outputFilePath, "out", "", "path to output file")
+	flag.BoolVar(&genDoNotEdit, "do-not-edit", false, "generate DO-NOT-EDIT code line")
 	flag.BoolVar(&useSQLSchemaFilter, "sqlschema", false, "enable SQL schema filter")
 	flag.Parse()
 	if "" == inputFilePath {
