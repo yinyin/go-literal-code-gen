@@ -175,6 +175,16 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err
 	return nil
 }
 
+func (filter *CodeGenerateFilter) hasConstTableProperty() bool {
+	for _, prop := range filter.TableProperties {
+		switch prop.Entry.TranslationMode {
+		case literalcodegen.TranslateAsConst:
+			return true
+		}
+	}
+	return false
+}
+
 func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error) {
 	if _, err = fp.WriteString("type schemaManager struct {\n" +
 		"\tmetaStoreTableName string\n" +
@@ -186,38 +196,44 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 	if _, err = fp.WriteString("func (m *schemaManager) FetchSchemaRevision() (schemaRev *schemaRevision, err error) {\n"); nil != err {
 		return
 	}
-	for _, codeLine := range filter.FetchRevisionCodeLines {
-		if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
-			return
-		}
-	}
-	if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n" +
-		"\tfor rows.Next() {\n" +
-		"\t\tvar metaKey, metaValue string\n" +
-		"\t\tif err = rows.Scan(&metaKey, &metaValue); nil != err {\n" +
-		"\t\t\treturn nil, err\n" +
-		"\t\t}\n" +
-		"\t\tswitch metaKey {\n"); nil != err {
-		return
-	}
-	for _, prop := range filter.TableProperties {
-		var codeLine string
-		switch prop.Entry.TranslationMode {
-		case literalcodegen.TranslateAsConst:
-			codeLine = "\t\tcase " + prop.metaKeySymbol() + ":\n" +
-				"\t\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
-				"\t\t\t\treturn nil, err\n" +
-				"\t\t\t}\n"
-		}
-		if codeLine != "" {
-			if _, err = fp.WriteString(codeLine); nil != err {
+	if filter.hasConstTableProperty() {
+		for _, codeLine := range filter.FetchRevisionCodeLines {
+			if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
 				return
 			}
 		}
-	}
-	if _, err = fp.WriteString("\t\t}\n" +
-		"\t}\n"); nil != err {
-		return
+		if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n" +
+			"\tfor rows.Next() {\n" +
+			"\t\tvar metaKey, metaValue string\n" +
+			"\t\tif err = rows.Scan(&metaKey, &metaValue); nil != err {\n" +
+			"\t\t\treturn nil, err\n" +
+			"\t\t}\n" +
+			"\t\tswitch metaKey {\n"); nil != err {
+			return
+		}
+		for _, prop := range filter.TableProperties {
+			var codeLine string
+			switch prop.Entry.TranslationMode {
+			case literalcodegen.TranslateAsConst:
+				codeLine = "\t\tcase " + prop.metaKeySymbol() + ":\n" +
+					"\t\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
+					"\t\t\t\treturn nil, err\n" +
+					"\t\t\t}\n"
+			}
+			if codeLine != "" {
+				if _, err = fp.WriteString(codeLine); nil != err {
+					return
+				}
+			}
+		}
+		if _, err = fp.WriteString("\t\t}\n" +
+			"\t}\n"); nil != err {
+			return
+		}
+	} else {
+		if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n"); nil != err {
+			return
+		}
 	}
 	for _, prop := range filter.TableProperties {
 		var codeLine string
@@ -234,26 +250,30 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		}
 	}
 	if _, err = fp.WriteString("\treturn schemaRev, nil\n" +
-		"}\n\n" +
-		"func (m *schemaManager) updateBaseTableSchemaRevision(key string, rev int32) (err error) {\n"); nil != err {
+		"}\n\n"); nil != err {
 		return
 	}
-	for _, codeLine := range filter.UpdateRevisionCodeLines {
-		if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
+	if filter.hasConstTableProperty() {
+		if _, err = fp.WriteString("func (m *schemaManager) updateBaseTableSchemaRevision(key string, rev int32) (err error) {\n"); nil != err {
 			return
 		}
-	}
-	if _, err = fp.WriteString("\treturn\n" +
-		"}\n\n"); nil != err {
-		return
-	}
-	if _, err = fp.WriteString("func (m *schemaManager) execBaseSchemaModification(sqlStmt, schemaMetaKey string, targetRev int32) (err error) {\n" +
-		"\tif _, err = m.conn.Exec(sqlStmt); nil != err {\n" +
-		"\t\treturn\n" +
-		"\t}\n" +
-		"\treturn m.updateBaseTableSchemaRevision(schemaMetaKey, targetRev)\n" +
-		"}\n\n"); nil != err {
-		return
+		for _, codeLine := range filter.UpdateRevisionCodeLines {
+			if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
+				return
+			}
+		}
+		if _, err = fp.WriteString("\treturn\n" +
+			"}\n\n"); nil != err {
+			return
+		}
+		if _, err = fp.WriteString("func (m *schemaManager) execBaseSchemaModification(sqlStmt, schemaMetaKey string, targetRev int32) (err error) {\n" +
+			"\tif _, err = m.conn.Exec(sqlStmt); nil != err {\n" +
+			"\t\treturn\n" +
+			"\t}\n" +
+			"\treturn m.updateBaseTableSchemaRevision(schemaMetaKey, targetRev)\n" +
+			"}\n\n"); nil != err {
+			return
+		}
 	}
 	for _, prop := range filter.TableProperties {
 		switch prop.Entry.TranslationMode {
