@@ -199,6 +199,8 @@ func (w *markdownParseSpace) stateOptionItemZero(token markdown.Token) (nextCall
 		return
 	}
 	switch node.Content {
+	case "noop":
+		w.currentNode.TranslationMode = TranslateAsExplicitNoop
 	case "const":
 		w.currentNode.TranslationMode = TranslateAsConst
 		nextCallable = w.stateOptionItemConst

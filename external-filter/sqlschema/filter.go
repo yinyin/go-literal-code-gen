@@ -146,15 +146,19 @@ func (filter *CodeGenerateFilter) generateSchemaRevisionStruct(fp *os.File) (err
 	for _, prop := range filter.TableProperties {
 		var codeLine string
 		switch prop.Entry.TranslationMode {
+		case literalcodegen.TranslateAsExplicitNoop:
+			codeLine = ""
 		case literalcodegen.TranslateAsConst:
 			codeLine = "\t" + prop.SymbolName + " int32\n"
 		case literalcodegen.TranslateAsBuilder:
 			codeLine = "\t" + prop.SymbolName + " []*" + prop.schemaRevisionRecordStructSymbol() + "\n"
 		default:
-			codeLine = fmt.Sprintf("\t// TODO: unknown translation mode %v for symbol [%v]", prop.Entry.TranslationMode, prop.SymbolName)
+			codeLine = fmt.Sprintf("\t// TODO: unknown translation mode %v for symbol [%v]\n", prop.Entry.TranslationMode, prop.SymbolName)
 		}
-		if _, err = fp.WriteString(codeLine); nil != err {
-			return
+		if codeLine != "" {
+			if _, err = fp.WriteString(codeLine); nil != err {
+				return
+			}
 		}
 	}
 	if _, err = fp.WriteString("}\n\n"); nil != err {

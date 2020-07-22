@@ -168,6 +168,8 @@ func generateLiteralCodes(fp *os.File, entries []*LiteralEntry) (err error) {
 		}
 		switch entry.TranslationMode {
 		case TranslateAsNoop:
+			fallthrough
+		case TranslateAsExplicitNoop:
 			err = nil
 		case TranslateAsConst:
 			err = generateLiteralCodeAsConst(fp, entry)

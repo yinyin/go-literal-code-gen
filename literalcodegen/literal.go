@@ -13,6 +13,9 @@ const (
 	// TranslateAsNoop set translation to no-op
 	TranslateAsNoop TranslationModeType = iota
 
+	// TranslateAsExplicitNoop set translation mode to explicitly noop
+	TranslateAsExplicitNoop
+
 	// TranslateAsConst set translation mode to constant
 	TranslateAsConst
 
