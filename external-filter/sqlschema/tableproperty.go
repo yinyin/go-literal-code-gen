@@ -42,7 +42,7 @@ func newTablePropertyFromTitle1(entry *literalcodegen.LiteralEntry) (prop *table
 	return prop
 }
 
-func (prop *tableProperty) fetchRoutines() (revisionParseCodeText string, revisionFetchCodeTexts, revisionUpdateCodeTexts []string, err error) {
+func (prop *tableProperty) fetchRoutines() (revisionFetchPrepareCodeTexts, revisionFetchCodeTexts, revisionUpdateCodeTexts []string, err error) {
 	var routineEntries []*literalcodegen.LiteralEntry
 	for _, child := range prop.Entry.ChildEntries {
 		if child.TitleText != "Routines" {
@@ -55,18 +55,16 @@ func (prop *tableProperty) fetchRoutines() (revisionParseCodeText string, revisi
 	}
 	for _, entry := range routineEntries {
 		switch entry.TitleText {
-		case "parse revision":
-			if revisionParseCodeText, err = entry.FilteredContentLine(); nil != err {
+		case "prepare fetch revision":
+			if revisionFetchPrepareCodeTexts, err = entry.FilteredContent(); nil != err {
 				return
 			}
 		case "fetch revision":
-			revisionFetchCodeTexts, err = entry.FilteredContent()
-			if nil != err {
+			if revisionFetchCodeTexts, err = entry.FilteredContent(); nil != err {
 				return
 			}
 		case "update revision":
-			revisionUpdateCodeTexts, err = entry.FilteredContent()
-			if nil != err {
+			if revisionUpdateCodeTexts, err = entry.FilteredContent(); nil != err {
 				return
 			}
 		default:

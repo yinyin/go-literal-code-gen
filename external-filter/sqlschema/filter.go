@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	interpolatetext "github.com/yinyin/go-interpolatetext"
+
 	"github.com/yinyin/go-literal-code-gen/literalcodegen"
 )
 
@@ -52,9 +54,11 @@ func writeTrimmedCodeLine(fp *os.File, codeLine string) (err error) {
 type CodeGenerateFilter struct {
 	MetaTableEntry *literalcodegen.LiteralEntry
 
-	ParseRevisionCodeText   string
-	FetchRevisionCodeLines  []string
-	UpdateRevisionCodeLines []string
+	FetchRevisionPrepareCodeLines []string
+	FetchRevisionCodeLines        []string
+	UpdateRevisionCodeLines       []string
+
+	FetchRevisionCodeTpl interpolatetext.TextMapInterpolationSlice
 
 	TableProperties []*tableProperty
 
@@ -98,7 +102,10 @@ func (filter *CodeGenerateFilter) cacheBaseRoutines() (err error) {
 		return nil
 	}
 	metaTableProp := filter.TableProperties[0]
-	filter.ParseRevisionCodeText, filter.FetchRevisionCodeLines, filter.UpdateRevisionCodeLines, err = metaTableProp.fetchRoutines()
+	if filter.FetchRevisionPrepareCodeLines, filter.FetchRevisionCodeLines, filter.UpdateRevisionCodeLines, err = metaTableProp.fetchRoutines(); nil != err {
+		return err
+	}
+	filter.FetchRevisionCodeTpl, err = interpolatetext.NewTextMapInterpolationSlice(filter.FetchRevisionCodeLines)
 	return err
 }
 
@@ -214,38 +221,30 @@ func (filter *CodeGenerateFilter) generateSchemaManager(fp *os.File) (err error)
 		return
 	}
 	if filter.hasConstTableProperty() {
-		for _, codeLine := range filter.FetchRevisionCodeLines {
+		for _, codeLine := range filter.FetchRevisionPrepareCodeLines {
 			if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
 				return
 			}
 		}
-		if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n" +
-			"\tfor rows.Next() {\n" +
-			"\t\tvar metaKey, metaValue string\n" +
-			"\t\tif err = rows.Scan(&metaKey, &metaValue); nil != err {\n" +
-			"\t\t\treturn nil, err\n" +
-			"\t\t}\n" +
-			"\t\tswitch metaKey {\n"); nil != err {
+		if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n"); nil != err {
 			return
 		}
 		for _, prop := range filter.TableProperties {
-			var codeLine string
-			switch prop.Entry.TranslationMode {
-			case literalcodegen.TranslateAsConst:
-				codeLine = "\t\tcase " + prop.metaKeySymbol() + ":\n" +
-					"\t\t\tif schemaRev." + prop.SymbolName + ", err = " + filter.ParseRevisionCodeText + "(metaValue); nil != err {\n" +
-					"\t\t\t\treturn nil, err\n" +
-					"\t\t\t}\n"
-			}
-			if codeLine != "" {
-				if _, err = fp.WriteString(codeLine); nil != err {
+			if prop.Entry.TranslationMode == literalcodegen.TranslateAsConst {
+				textMap := map[string]string{
+					"SCHEMA_REV_KEY": prop.metaKeySymbol(),
+					"SCHEMA_REV_VAR": "schemaRev." + prop.SymbolName,
+				}
+				var codeLines []string
+				if codeLines, err = filter.FetchRevisionCodeTpl.Apply(textMap, true); nil != err {
 					return
 				}
+				for _, codeLine := range codeLines {
+					if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
+						return
+					}
+				}
 			}
-		}
-		if _, err = fp.WriteString("\t\t}\n" +
-			"\t}\n"); nil != err {
-			return
 		}
 	} else {
 		if _, err = fp.WriteString("\tschemaRev = &schemaRevision{}\n"); nil != err {

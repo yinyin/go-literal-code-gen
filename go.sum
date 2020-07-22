@@ -2,6 +2,8 @@ github.com/russross/blackfriday v2.0.0+incompatible h1:cBXrhZNUf9C+La9/YpS+UHpUT
 github.com/russross/blackfriday v2.0.0+incompatible/go.mod h1:JO/DiYxRf+HjHt06OyowR9PTA263kcR/rfWxYHBV53g=
 github.com/shurcooL/sanitized_anchor_name v1.0.0 h1:PdmoCO6wvbs+7yrJyMORt4/BmY5IYyJwS/kOiWx8mHo=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
+github.com/yinyin/go-interpolatetext v0.0.0-20181209181057-abd207492187 h1:oPyU3573LVBYleM71E7qNuin1HYx5CDMO7cGwzsg7yA=
+github.com/yinyin/go-interpolatetext v0.0.0-20181209181057-abd207492187/go.mod h1:sB4SsA5K80pjpDPMd1SCkN0Qelid96tC38N4C5AFy/U=
 github.com/yinyin/go-run-gofmt v1.0.0 h1:tnKD3vRD+53viO0QC0zIEGXEtOrmdzNCM8XSE8dKSw8=
 github.com/yinyin/go-run-gofmt v1.0.0/go.mod h1:SWrqo+Ak79o65NeMUcxD+grouv2lCIWgY6tnYPwtAso=
 gitlab.com/golang-commonmark/html v0.0.0-20180917080848-cfaf75183c4a h1:Ax7kdHNICZiIeFpmevmaEWb0Ae3BUj3zCTKhZHZ+zd0=
