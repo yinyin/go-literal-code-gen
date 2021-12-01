@@ -292,6 +292,7 @@ func ParseMarkdown(filePath string) (code *LiteralCode, err error) {
 	}
 	md := markdown.New()
 	tokens := md.Parse(buf)
+	logMarkdownAST(tokens)
 	work := newMarkdownParseSpace()
 	if err = work.feedTokens(work.stateZero, tokens); nil != err {
 		return

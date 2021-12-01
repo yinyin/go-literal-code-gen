@@ -2,6 +2,8 @@ package literalcodegen
 
 import (
 	"log"
+
+	"gitlab.com/golang-commonmark/markdown"
 )
 
 func logLiteralEntry(entry *LiteralEntry) {
@@ -47,4 +49,24 @@ func LogLiteralCode(code *LiteralCode) {
 	logLiteralEntries(code.HeadingCodes)
 	log.Printf("# Literal Constants (%d)", len(code.LiteralConstants))
 	logLiteralEntries(code.LiteralConstants)
+}
+
+func logMarkdownAST(tokens []markdown.Token) {
+	spaceText := "                "
+	for idx, tok := range tokens {
+		var indentText string
+		if lvl := tok.Level(); lvl >= len(spaceText) {
+			indentText = spaceText
+		} else if lvl > 0 {
+			indentText = spaceText[:lvl]
+		}
+		var blockIndicator string
+		if tok.Block() {
+			blockIndicator = "B"
+		} else {
+			blockIndicator = "i"
+		}
+
+		log.Printf("%03d: %s%s:%#v", idx, indentText, blockIndicator, tok)
+	}
 }
