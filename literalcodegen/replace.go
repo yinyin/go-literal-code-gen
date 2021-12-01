@@ -111,14 +111,14 @@ type ReplaceResult struct {
 }
 
 func (r *ReplaceResult) isEmpty() bool {
-	if ("" == r.PrefixLiteral) && ("" == r.ReplacedCode) && ("" == r.SuffixLiteral) {
+	if (r.PrefixLiteral == "") && (r.ReplacedCode == "") && (r.SuffixLiteral == "") {
 		return true
 	}
 	return false
 }
 
 func (r *ReplaceResult) isSimpleLiteral() bool {
-	if ("" != r.PrefixLiteral) && ("" == r.ReplacedCode) && ("" == r.SuffixLiteral) {
+	if (r.PrefixLiteral == "") && (r.ReplacedCode == "") && (r.SuffixLiteral == "") {
 		return true
 	}
 	return false
@@ -130,14 +130,14 @@ func (r *ReplaceResult) runReplaceWith(rule *ReplaceRule) (prefixResults []*Repl
 		ReplacedCode:  r.ReplacedCode,
 		SuffixLiteral: r.SuffixLiteral,
 	}
-	if "" != r.PrefixLiteral {
+	if r.PrefixLiteral != "" {
 		if prefixResults, err = rule.doReplace(r.PrefixLiteral); nil != err {
 			return
 		} else if len(prefixResults) > 0 {
 			replacedResult.PrefixLiteral = ""
 		}
 	}
-	if "" != r.SuffixLiteral {
+	if r.SuffixLiteral != "" {
 		if suffixResults, err = rule.doReplace(r.SuffixLiteral); nil != err {
 			return
 		} else if len(suffixResults) > 0 {
@@ -179,7 +179,7 @@ func doReplace(rules []*ReplaceRule, text string) (result []*ReplaceResult, err 
 			}
 		}
 	}
-	if (1 == len(result)) && result[0].isSimpleLiteral() {
+	if (len(result) == 1) && result[0].isSimpleLiteral() {
 		return nil, nil
 	}
 	return result, nil

@@ -96,12 +96,12 @@ func (entry *LiteralEntry) AppendContent(content, langType string, langFilterArg
 		}
 		if ((idx == lastLineIndex) && (entry.TailNewLine)) || entry.PreserveNewLine {
 			line = line + "\n"
-		} else if ("" == line) && (!entry.KeepEmptyLine) {
+		} else if (line == "") && (!entry.KeepEmptyLine) {
 			continue
 		}
 		entry.Content = append(entry.Content, line)
 	}
-	if "" == entry.LanguageType {
+	if entry.LanguageType == "" {
 		entry.LanguageType = langType
 		entry.LanguageFilterArgs = langFilterArgs
 	} else if nil != langFilterArgs {

@@ -20,7 +20,7 @@ func generatePassthroughGoCode(fp *os.File, entry *LiteralEntry) (err error) {
 		}
 		uch := []rune(line)
 		lch := len(uch) - 1
-		if (lch < 0) || ('\n' != uch[lch]) {
+		if (lch < 0) || (uch[lch] != '\n') {
 			if _, err = fp.WriteString("\n"); nil != err {
 				return err
 			}
@@ -57,7 +57,7 @@ func writeSimpleLiteralText(fp *os.File, line string, currentLineIndex, lastLine
 }
 
 func appendLiteralText(codeLine, literalText string, hasCode bool) (string, bool) {
-	if "" == literalText {
+	if literalText == "" {
 		return codeLine, hasCode
 	}
 	if hasCode {
@@ -68,7 +68,7 @@ func appendLiteralText(codeLine, literalText string, hasCode bool) (string, bool
 }
 
 func appendLiteralCode(codeLine, codeText string, hasCode bool) (string, bool) {
-	if "" == codeText {
+	if codeText == "" {
 		return codeLine, hasCode
 	}
 	if hasCode {

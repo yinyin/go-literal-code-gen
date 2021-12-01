@@ -149,9 +149,8 @@ func (w *markdownParseSpace) stateReplaceRuleZero(token markdown.Token) (nextCal
 }
 
 func (w *markdownParseSpace) stateReplaceRule(token markdown.Token) (nextCallable markdownParseCallable, err error) {
-	switch token.(type) {
+	switch node := token.(type) {
 	case *markdown.Inline:
-		node := token.(*markdown.Inline)
 		w.feedTokens(w.stateReplaceRuleZero, node.Children)
 	case *markdown.BulletListClose:
 		if nil != w.replaceRule.RegexTrap {
@@ -184,7 +183,7 @@ func (w *markdownParseSpace) stateOptionItemBuilder(token markdown.Token) (nextC
 		return
 	}
 	txt := node.Content
-	if "" == w.currentNode.Name {
+	if w.currentNode.Name == "" {
 		w.currentNode.Name = txt
 	} else {
 		w.currentNode.Parameters = append(w.currentNode.Parameters, txt)
@@ -227,9 +226,8 @@ func (w *markdownParseSpace) stateOptionItemZero(token markdown.Token) (nextCall
 }
 
 func (w *markdownParseSpace) stateOptionItem(token markdown.Token) (nextCallable markdownParseCallable, err error) {
-	switch token.(type) {
+	switch node := token.(type) {
 	case *markdown.Inline:
-		node := token.(*markdown.Inline)
 		w.feedTokens(w.stateOptionItemZero, node.Children)
 	case *markdown.ListItemClose:
 		return w.stateZero, nil
@@ -242,15 +240,14 @@ func (w *markdownParseSpace) stateOptionItem(token markdown.Token) (nextCallable
 }
 
 func (w *markdownParseSpace) stateZero(token markdown.Token) (nextCallable markdownParseCallable, err error) {
-	switch token.(type) {
+	switch node := token.(type) {
 	case *markdown.HeadingOpen:
 		return w.checkHeading(token.(*markdown.HeadingOpen))
 	case *markdown.ListItemOpen:
 		return w.stateOptionItem, nil
 	case *markdown.Fence:
-		fenceToken := token.(*markdown.Fence)
-		langType, filterArgs := parseCodeBlockLanguageParams(fenceToken.Params)
-		w.currentNode.AppendContent(fenceToken.Content, langType, filterArgs)
+		langType, filterArgs := parseCodeBlockLanguageParams(node.Params)
+		w.currentNode.AppendContent(node.Content, langType, filterArgs)
 	default:
 		log.Printf("- skipped: markdown (L0): %T, %#v", token, token)
 	}
@@ -272,10 +269,10 @@ func (w *markdownParseSpace) feedTokens(startCallable markdownParseCallable, tok
 func parseCodeBlockLanguageParams(params string) (languageType string, filterArgs []string) {
 	aux := strings.Split(params, " ")
 	for _, arg := range aux {
-		if "" == arg {
+		if arg == "" {
 			continue
 		}
-		if "" == languageType {
+		if languageType == "" {
 			languageType = arg
 		} else {
 			filterArgs = append(filterArgs, arg)

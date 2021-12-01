@@ -34,7 +34,7 @@ func logLiteralEntry(entry *LiteralEntry) {
 }
 
 func logLiteralEntries(entries []*LiteralEntry) {
-	if 0 == len(entries) {
+	if len(entries) == 0 {
 		return
 	}
 	for idx, entry := range entries {
