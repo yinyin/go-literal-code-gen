@@ -430,13 +430,22 @@ func (filter *CodeGenerateFilter) generateBuilderSchemaUpgradeRoutine(fp *os.Fil
 		if nil == entry {
 			continue
 		}
+		var schemaUpdateCustomCode string
 		var schemaUpdateInvokeLeadingCode string
 		if migrateEntrySymbol := prop.migrateEntrySymbol(entry, int32(sourceRev)); migrateEntrySymbol != "" {
 			schemaUpdateInvokeLeadingCode = prop.execSchemaModificationSymbol() + "(" + migrateEntrySymbol + "(" + paramAsArgs + "), "
 		} else {
+			if entry.LanguageType == "go" {
+				var customCode []string
+				if customCode, err = entry.FilteredContent(); nil != err {
+					return
+				}
+				schemaUpdateCustomCode = strings.TrimSpace(strings.Join(customCode, "\n")) + "\n"
+			}
 			schemaUpdateInvokeLeadingCode = prop.updateSchemaRevisionSymbol() + "("
 		}
 		if _, err = fp.WriteString("\tcase " + strconv.FormatInt(int64(sourceRev), 10) + ":\n" +
+			schemaUpdateCustomCode +
 			"\t\tif err = m." + schemaUpdateInvokeLeadingCode + paramAsArgs + ", " + strconv.FormatInt(int64(sourceRev+1), 10) + "); nil == err {\n" +
 			"\t\t\tschemaChanged = true\n"); nil != err {
 			return

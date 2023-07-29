@@ -150,6 +150,9 @@ func (prop *tableProperty) sqlCreateSymbol() string {
 }
 
 func (prop *tableProperty) migrateEntrySymbol(entry *literalcodegen.LiteralEntry, sourceRev int32) string {
+	if entry.LanguageType != "sql" {
+		return ""
+	}
 	if content, err := entry.FilteredContent(); (nil == err) && (len(content) == 0) {
 		return ""
 	}
