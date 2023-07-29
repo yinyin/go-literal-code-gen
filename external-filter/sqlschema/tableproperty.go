@@ -16,7 +16,7 @@ type tableProperty struct {
 }
 
 func newTablePropertyFromTitle1(entry *literalcodegen.LiteralEntry) (prop *tableProperty) {
-	if "" == entry.TitleText {
+	if entry.TitleText == "" {
 		return nil
 	}
 	m := tablePropTitleTrap.FindStringSubmatchIndex(entry.TitleText)
@@ -99,9 +99,9 @@ func (prop *tableProperty) feedMigrationEntries(entries []*literalcodegen.Litera
 
 func (prop *tableProperty) warnEmptyMigrationEntries() {
 	for idx, targetRevEntry := range prop.MigrationEntries {
-		if (0 == idx) && (targetRevEntry != nil) {
+		if (idx == 0) && (targetRevEntry != nil) {
 			log.Printf("WARN: target revision 0 with migration: %v, %v", prop.SymbolName, targetRevEntry)
-		} else if (0 != idx) && (targetRevEntry == nil) {
+		} else if (idx != 0) && (targetRevEntry == nil) {
 			log.Printf("WARN: target revision %d with empty migration: %v, %v", idx, prop.SymbolName, targetRevEntry)
 		}
 	}
@@ -120,7 +120,7 @@ func (prop *tableProperty) initMigrationEntries() {
 
 func (prop *tableProperty) updateMigrationEntryParameters(entry *literalcodegen.LiteralEntry) {
 	if entry.TranslationMode == literalcodegen.TranslateAsBuilder {
-		if ("" == entry.Name) && (0 == len(entry.Parameters)) {
+		if (entry.Name == "") && (len(entry.Parameters) == 0) {
 			entry.Parameters = prop.Entry.Parameters
 		}
 	}
@@ -150,6 +150,9 @@ func (prop *tableProperty) sqlCreateSymbol() string {
 }
 
 func (prop *tableProperty) migrateEntrySymbol(entry *literalcodegen.LiteralEntry, sourceRev int32) string {
+	if content, err := entry.FilteredContent(); (nil == err) && (len(content) == 0) {
+		return ""
+	}
 	var symbolPrefix string
 	if entry.TranslationMode == literalcodegen.TranslateAsBuilder {
 		symbolPrefix = "makeSQLMigrate"
@@ -171,6 +174,10 @@ func (prop *tableProperty) upgradeWithRevisionRecordsRoutineSymbol() string {
 		return "UpgradeSchemaOf" + prop.SymbolName
 	}
 	return "upgradeSchema" + prop.SymbolName + "WithRevisions"
+}
+
+func (prop *tableProperty) updateSchemaRevisionSymbol() string {
+	return "update" + prop.SymbolName + "SchemaRevision"
 }
 
 func (prop *tableProperty) execSchemaModificationSymbol() string {

@@ -20,11 +20,11 @@ func compileTrapRegexps() (err error) {
 	if (nil != tablePropTitleTrap) && (nil != migrateRevTitleTrap) {
 		return nil
 	}
-	if tablePropTitleTrap, err = regexp.Compile("([a-zA-Z0-9_]+)\\s+\\(([a-zA-Z0-9-_]+)\\)\\s+r\\.\\s*([0-9]+)"); nil != err {
+	if tablePropTitleTrap, err = regexp.Compile(`([a-zA-Z0-9_]+)\s+\(([a-zA-Z0-9-_]+)\)\s+r\.\s*([0-9]+)`); nil != err {
 		log.Printf("ERR: failed on compiling regular expression for trapping table property: %v", err)
 		return
 	}
-	if migrateRevTitleTrap, err = regexp.Compile("To\\s+r\\.\\s*([0-9]+)"); nil != err {
+	if migrateRevTitleTrap, err = regexp.Compile(`To\s+r\.\s*([0-9]+)`); nil != err {
 		log.Printf("ERR: failed on compiling regular expression for trapping migration revision: %v", err)
 		return
 	}
@@ -80,7 +80,7 @@ func (filter *CodeGenerateFilter) PreCodeGenerate(entries []*literalcodegen.Lite
 		return
 	}
 	for _, entry := range entries {
-		if 0 != entry.LevelDepth {
+		if entry.LevelDepth != 0 {
 			continue
 		}
 		if prop := newTablePropertyFromTitle1(entry); nil != prop {
@@ -358,11 +358,23 @@ func (filter *CodeGenerateFilter) generateBuilderExecSchemaModificationRoutine(f
 	if nil != err {
 		return
 	}
-	if 0 == len(revisionUpdateCodeTexts) {
+	if len(revisionUpdateCodeTexts) == 0 {
 		revisionUpdateCodeTexts = []string{
 			"\t// TODO: revision update code (Routines > update revision) will placed here",
 		}
 		filter.increaseTODOCount()
+	}
+	if _, err = fp.WriteString("func (m *schemaManager) " + prop.updateSchemaRevisionSymbol() + "(" + strings.Join(prop.Entry.Parameters, ", ") + ", targetRev int32) (err error) {\n"); nil != err {
+		return
+	}
+	for _, codeLine := range revisionUpdateCodeTexts {
+		if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
+			return
+		}
+	}
+	if _, err = fp.WriteString("\treturn\n" +
+		"}\n\n"); nil != err {
+		return
 	}
 	if _, err = fp.WriteString("func (m *schemaManager) " + prop.execSchemaModificationSymbol() + "(sqlStmt string, " + strings.Join(prop.Entry.Parameters, ", ") + ", targetRev int32) (err error) {\n" +
 		"\tif _, err = m.conn.ExecContext(m.ctx, sqlStmt); nil != err {\n" +
@@ -370,10 +382,8 @@ func (filter *CodeGenerateFilter) generateBuilderExecSchemaModificationRoutine(f
 		"\t}\n"); nil != err {
 		return
 	}
-	for _, codeLine := range revisionUpdateCodeTexts {
-		if err = writeTrimmedCodeLine(fp, codeLine); nil != err {
-			return
-		}
+	if _, err = fp.WriteString("\terr = m." + prop.updateSchemaRevisionSymbol() + "(" + strings.Join(parametersToArguments(prop.Entry.Parameters), ", ") + ", targetRev)\n"); nil != err {
+		return
 	}
 	if _, err = fp.WriteString("\treturn\n" +
 		"}\n\n"); nil != err {
@@ -420,8 +430,14 @@ func (filter *CodeGenerateFilter) generateBuilderSchemaUpgradeRoutine(fp *os.Fil
 		if nil == entry {
 			continue
 		}
+		var schemaUpdateInvokeLeadingCode string
+		if migrateEntrySymbol := prop.migrateEntrySymbol(entry, int32(sourceRev)); migrateEntrySymbol != "" {
+			schemaUpdateInvokeLeadingCode = prop.execSchemaModificationSymbol() + "(" + migrateEntrySymbol + "(" + paramAsArgs + "), "
+		} else {
+			schemaUpdateInvokeLeadingCode = prop.updateSchemaRevisionSymbol() + "("
+		}
 		if _, err = fp.WriteString("\tcase " + strconv.FormatInt(int64(sourceRev), 10) + ":\n" +
-			"\t\tif err = m." + prop.execSchemaModificationSymbol() + "(" + prop.migrateEntrySymbol(entry, int32(sourceRev)) + "(" + paramAsArgs + "), " + paramAsArgs + ", " + strconv.FormatInt(int64(sourceRev+1), 10) + "); nil == err {\n" +
+			"\t\tif err = m." + schemaUpdateInvokeLeadingCode + paramAsArgs + ", " + strconv.FormatInt(int64(sourceRev+1), 10) + "); nil == err {\n" +
 			"\t\t\tschemaChanged = true\n"); nil != err {
 			return
 		}
@@ -470,6 +486,9 @@ func (filter *CodeGenerateFilter) generateBuilderFetchSchemaRevisionRoutine(fp *
 		return
 	}
 	_, revisionFetchCodeTexts, _, err := prop.fetchRoutines()
+	if nil != err {
+		return
+	}
 	if len(revisionFetchCodeTexts) == 0 {
 		revisionFetchCodeTexts = []string{
 			"// TODO: revision fetch code (Routines > fetch revision) will placed here",
